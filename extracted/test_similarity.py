@@ -4,7 +4,6 @@ Unit tests for the file similarity comparison script.
 """
 
 import tempfile
-import os
 from pathlib import Path
 from compare_file_similarity import calculate_similarity, is_text_file
 

@@ -6,7 +6,6 @@ Compares all files in the current directory and subdirectories to identify
 files with 90% or more similar content.
 """
 
-import os
 import sys
 from pathlib import Path
 from typing import List, Tuple, Set
