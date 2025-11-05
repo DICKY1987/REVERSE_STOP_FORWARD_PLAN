@@ -13,6 +13,12 @@ from difflib import SequenceMatcher
 import mimetypes
 
 
+# Constants
+MAX_FILE_SIZE_MB = 10  # Maximum file size to compare (in MB)
+PROGRESS_UPDATE_INTERVAL = 100  # Update progress every N comparisons (interactive)
+NON_INTERACTIVE_PROGRESS_INTERVAL = 1000  # Update progress every N comparisons (non-interactive)
+
+
 def is_text_file(file_path: Path) -> bool:
     """
     Check if a file is likely a text file.
@@ -49,7 +55,7 @@ def is_text_file(file_path: Path) -> bool:
         return False
 
 
-def calculate_similarity(file1_path: Path, file2_path: Path, max_size_mb: int = 10) -> float:
+def calculate_similarity(file1_path: Path, file2_path: Path, max_size_mb: int = MAX_FILE_SIZE_MB) -> float:
     """
     Calculate similarity between two files.
     
@@ -97,8 +103,17 @@ def get_all_files(root_dir: Path, exclude_dirs: Set[str] = None) -> List[Path]:
         List of file paths
     """
     if exclude_dirs is None:
-        exclude_dirs = {'.git', '__pycache__', 'node_modules', '.pytest_cache', 
-                       '.venv', 'venv', 'dist', 'build', '.tox'}
+        exclude_dirs = {
+            '.git',
+            '__pycache__',
+            'node_modules',
+            '.pytest_cache',
+            '.venv',
+            'venv',
+            'dist',
+            'build',
+            '.tox'
+        }
     
     files = []
     
@@ -124,13 +139,13 @@ def report_progress(comparisons_done: int, total_comparisons: int) -> None:
         comparisons_done: Number of comparisons completed
         total_comparisons: Total number of comparisons to perform
     """
-    if comparisons_done % 100 == 0 or comparisons_done == total_comparisons:
+    if comparisons_done % PROGRESS_UPDATE_INTERVAL == 0 or comparisons_done == total_comparisons:
         if sys.stdout.isatty():
             print(f"Progress: {comparisons_done}/{total_comparisons} comparisons", end='\r')
             sys.stdout.flush()
         else:
             # For non-interactive output, print periodic updates
-            if comparisons_done % 1000 == 0 or comparisons_done == total_comparisons:
+            if comparisons_done % NON_INTERACTIVE_PROGRESS_INTERVAL == 0 or comparisons_done == total_comparisons:
                 print(f"Progress: {comparisons_done}/{total_comparisons} comparisons")
 
 
