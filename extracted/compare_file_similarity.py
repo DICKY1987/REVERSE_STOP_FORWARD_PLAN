@@ -136,14 +136,16 @@ def compare_files(root_dir: Path, similarity_threshold: float = 0.90) -> List[Tu
             
             # Progress indicator
             if comparisons_done % 100 == 0 or comparisons_done == total_comparisons:
-                print(f"Progress: {comparisons_done}/{total_comparisons} comparisons", end='\r')
+                if sys.stdout.isatty():
+                    print(f"Progress: {comparisons_done}/{total_comparisons} comparisons", end='\r')
+                    sys.stdout.flush()
+                else:
+                    # For non-interactive output, print periodic updates
+                    if comparisons_done % 1000 == 0 or comparisons_done == total_comparisons:
+                        print(f"Progress: {comparisons_done}/{total_comparisons} comparisons")
             
             file1 = files[i]
             file2 = files[j]
-            
-            # Skip if files are the same
-            if file1 == file2:
-                continue
             
             similarity = calculate_similarity(file1, file2)
             

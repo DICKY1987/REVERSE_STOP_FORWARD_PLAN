@@ -43,8 +43,7 @@ The script outputs:
 Last run results are saved in `similarity_report.txt`.
 
 **Summary of findings:**
-- **Total text files scanned**: 91
-- **Total comparisons performed**: 4,095
+- **Total text files scanned**: Varies based on files present (typically 90+)
 - **Files with 90%+ similarity**: 1 pair
 
 **Identified similar files:**
@@ -68,9 +67,9 @@ Text files are identified by:
 
 ### Performance
 
-- For 91 files: ~4,000 comparisons completed in under 3 minutes
 - Comparison complexity: O(n²) where n is the number of files
 - Memory usage: Reads two files at a time, memory-efficient for large directories
+- Progress indicators adapt to terminal vs. non-terminal output
 
 ## Customization
 
