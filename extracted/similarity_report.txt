@@ -1,0 +1,31 @@
+================================================================================
+File Similarity Comparator
+================================================================================
+Searching for files with 90% or more similar content
+Root directory: /home/runner/work/REVERSE_STOP_FORWARD_PLAN/REVERSE_STOP_FORWARD_PLAN/extracted
+================================================================================
+
+Scanning files in /home/runner/work/REVERSE_STOP_FORWARD_PLAN/REVERSE_STOP_FORWARD_PLAN/extracted...
+Found 93 text files to compare
+
+Comparing files (total comparisons: 4278)...
+Progress: 1000/4278 comparisons
+Progress: 2000/4278 comparisons
+Progress: 3000/4278 comparisons
+Progress: 4000/4278 comparisons
+Progress: 4278/4278 comparisons
+
+
+================================================================================
+RESULTS
+================================================================================
+
+Found 1 pair(s) of files with 90% or more similarity:
+
+Similarity: 100.00%
+  File 1: spec_project/tests/acceptance/user_creates_order.feature
+  File 2: order_research/tests/acceptance/user_creates_order.feature
+
+================================================================================
+Comparison complete!
+================================================================================
