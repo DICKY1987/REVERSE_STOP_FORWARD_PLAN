@@ -1,0 +1,1798 @@
+Context & Methods for the Planning Phase
+1. Workflow.docx - The 12-Step Deterministic Pipeline
+Context Provided:
+
+Step 2 (Planning Phase) is explicitly defined with clear inputs, outputs, and checkpoints
+Planning occurs after run initialization and before worktree provisioning
+Every phase produces declared artifacts and checkpoint commits
+
+Methods Introduced:
+
+Structured Planning Tool Dispatch: Uses tool_bridge.py to call AI planning tools (Claude/Aider) via JSON-RPC
+Deterministic Outputs: Planning must produce execution_plan.yaml that defines workstreams, file scopes, and quality gates
+Git Checkpoints: After successful planning, creates checkpoint(plan-complete) commit
+JSONL Logging: All planning events logged with ULID for traceability
+Failure Handling: If planning fails → write plan_error.txt, abort run (no repo mutations except logs)
+
+Key Code Pattern:
+powershell$req = @{
+  tool  = "claude"
+  args  = @("plan","--no-tui")
+  stdin = Get-Content "$RunRoot\prompt.md" -Raw
+} | ConvertTo-Json -Compress
+$resp = $req | python .\tool_bridge.py | ConvertFrom-Json
+
+2. Recommended Documentation Strategy - AI-Executable Contracts
+Context Provided:
+
+Plans must be machine-readable (YAML/JSON) with explicit preconditions, steps, validation, and postconditions
+Three-tier documentation: Execution Contracts, Reference Implementations, Agent Instructions
+
+Methods Introduced:
+
+Execution Contracts (Tier 1): YAML contracts with:
+
+Preconditions (repository state, tools, environment)
+Build steps with validation and rollback
+Postconditions and quality gates
+Error handling strategies
+
+
+Reference Implementations (Tier 2): Code templates with BEGIN AUTO SECTION / END AUTO SECTION markers for safe AI editing
+CLAUDE.md (Tier 3): Natural language context for AI agents including:
+
+Architecture references (priority order)
+SafePatch patterns
+Testing requirements (TDD)
+Tool usage guidelines
+
+
+
+Planning Phase Application:
+
+Plans should follow execution contract format
+Each plan step has explicit validation criteria
+Plans reference authoritative documents in priority order
+Plans enforce determinism through structured formats
+
+
+3. R_PIPELINE Operating Contract - System Guarantees
+Context Provided:
+
+Planning must operate within defined scope (what system automates vs. refuses to automate)
+All planning decisions must be logged in append-only JSONL ledger with ULIDs
+Plans must respect lifecycle events and plugin boundaries
+
+Methods Introduced:
+
+Safety Guarantees: Plans must preserve:
+
+No silent data loss
+Deterministic behavior (same input → same output)
+Audit trail integrity
+Blast radius isolation
+Reversibility
+
+
+Planning Artifacts Required:
+
+execution_plan.yaml or similar structured plan
+Workstream definitions with file scopes
+Quality gate specifications
+Ledger entries for plan generation
+
+
+Core vs Plugin Separation: Plans define what core orchestrates vs. what plugins handle
+
+Planning Constraints:
+
+Cannot plan deletion of protected branches
+Cannot plan merges that delete >threshold files
+Cannot plan changes to /core/ without review
+Must work through ledger (no bypassing)
+
+
+4. integrate_these_implementations - Reference Patterns
+Context Provided:
+
+Planning phase needs state machine integration
+Plans must map to task DAG for execution
+Context filtering needed for AI tool invocation
+
+Methods Introduced:
+State Machine for Plan Tasks:
+pythonclass PipelineTaskExecution(ExecutionStateMachine):
+    def __init__(self, task_id, states, initial_state, run_id):
+        self.trace_id = str(ulid.new())  # OpenTelemetry
+        self.run_path = Path(f".runs/{run_id}")
+Workflow Scheduler:
+pythonWORKFLOW_STEPS = {
+    "step_02_planning": {
+        "tasks": ["task_003_planning"],
+        "checkpoint": "checkpoint(plan-complete)",
+        "parallel": False
+    }
+}
+Context Broker Integration:
+
+Filter files before passing to LLM planning agents
+Enforce token budgets (80K for Aider, 150K for Claude Code)
+Generate stable context manifests
+
+Planning Phase Usage:
+
+Plans create task graphs with dependencies
+Each plan step has state machine tracking (PENDING → RUNNING → COMPLETED/FAILED)
+Plans use context broker to select relevant files for AI analysis
+
+
+5. Blueprint for ACMS - Architectural Principles
+Context Provided:
+
+Planning separated from execution (Claude Code for planning, Aider for execution)
+Planning must produce structured outputs (not free-form text)
+Plans operate on structured input documents only
+
+Methods Introduced:
+Two-Phase Planning Architecture:
+
+Phase 1 - Planning (Claude Code):
+
+Transforms natural language modification_goal into structured plan
+Uses /output-style:yaml-plan for deterministic output
+Injects context via CLAUDE.md in worktree root
+Produces machine-readable plan (JSON/YAML)
+
+
+Phase 2 - Execution (Aider):
+
+Consumes structured plan from Phase 1
+Operates headlessly with piped instructions
+No open-ended chat (deterministic file editing)
+
+
+
+Structured Input Processing:
+
+Plans use yq (YAML processor) to extract control parameters
+Plans use jq (JSON processor) for intermediate transformations
+All planning data is validated against schemas
+
+Adaptive Modularity:
+
+Plans leverage Python entry points for dynamic tool discovery
+Plans can adapt based on available tools without hardcoding
+
+Planning Tool Pattern:
+bash# Extract planning goal
+yq '.modification_goal' input.yaml | \
+claude-code plan --output-style yaml-plan | \
+jq '.steps' > execution_plan.json
+
+6. Modification Plan to Workstream Modules - Plan Decomposition
+Context Provided:
+
+Plans must be decomposed into four distinct modules
+Planning produces structured JSON that flows through pipeline
+Plans must identify parallelization opportunities
+
+Methods Introduced:
+Module 1 - Modification Plan Parser (MP-XXX):
+
+Schema validation of plan JSON
+Safety checks (path traversal, malicious patterns)
+Normalization (resolve paths, assign WSLIDs)
+
+Module 2 - Dependency Analyzer (DA-XXX):
+
+File conflict detection
+Dependency graph construction
+Parallelization scoring
+
+Module 3 - Workstream Generator (WG-XXX):
+
+Group modifications into independent workstreams
+Assign workstream IDs (WSIDs using ULID)
+Optimize for parallel execution
+
+Module 4 - Workstream Executor (WE-XXX):
+
+Create git worktrees per workstream
+Execute modifications in isolation
+Merge successful workstreams
+
+Planning Phase JSON Schema:
+json{
+  "metadata": {
+    "request_id": "req-20250115-abc123",
+    "timestamp": "2025-01-15T10:30:00Z",
+    "prompt": "Add user authentication system"
+  },
+  "modifications": [
+    {
+      "id": "mod-001",
+      "operation": "create|edit|remove",
+      "path": "src/auth/login.py",
+      "dependencies": ["mod-002"],
+      "rationale": "Why this change"
+    }
+  ]
+}
+
+Integrated Planning Phase Methodology
+Step-by-Step Planning Process:
+
+Input Ingestion (Workflow Step 1)
+
+Read prompt from .prompts/request.md
+Generate RUN_ID (ULID)
+Create .runs/{RUN_ID} structure
+
+
+Structured Planning (Workflow Step 2)
+
+Tool: Claude Code CLI via tool_bridge.py
+Input: Prompt + repo context + CLAUDE.md
+Output: execution_plan.yaml with:
+
+Modification list (MP schema)
+Dependency graph (DA analysis)
+Workstream groupings (WG output)
+Quality gates per workstream
+
+
+
+
+Plan Validation
+
+Schema validation against contract
+Security checks (path traversal, etc.)
+Circular dependency detection
+Resource feasibility check
+
+
+Plan Decomposition
+
+Parse modifications (MP-XXX)
+Analyze dependencies (DA-XXX)
+Generate workstreams (WG-XXX)
+Calculate parallelization score
+
+
+Checkpoint & Logging
+
+Git checkpoint: checkpoint(plan-complete)
+JSONL entry: {event:"plan_complete", files:[], commit_sha}
+Store plan artifacts in .runs/{RUN_ID}/artifacts/
+
+
+
+Planning Guarantees:
+✅ Deterministic: Same prompt → same plan → same workstreams
+✅ Auditable: Every decision logged with ULID
+✅ Reversible: Plan failures don't mutate repo
+✅ Structured: Machine-readable YAML/JSON only
+✅ Validated: Schema + security + feasibility checks
+✅ Modular: Plugin-based with entry points
+Planning Failure Modes:
+
+Parse Error: Invalid JSON/YAML → reject plan, log error, abort
+Security Violation: Path traversal → quarantine, alert, abort
+Circular Dependencies: Unsolvable graph → report conflicts, abort
+Resource Constraints: Too many workstreams → warn, suggest serial execution
+
+
+Key Takeaways for Planning Phase:
+
+Planning is a structured transformation: Prompt → Structured JSON → Workstreams
+Tools are separated: Claude Code plans, Aider executes
+Everything is logged: JSONL entries with ULIDs for every decision
+Checkpoints are mandatory: Git commits after successful planning
+Safety first: Validation, security checks, rollback built-in
+Determinism is critical: Same input must yield same plan
+Context is injected: CLAUDE.md, contracts, schemas inform planning
+Parallelization is optimized: Dependency analysis identifies opportunities
+
+These documents provide a complete, deterministic, auditable planning methodology that transforms AI prompts into executable workstreams while maintaining safety, traceability, and reproducibility.RetryDbased on the modular + plugin architecture, decompose the planning phase down into its individual modulesArchitected planning phase decomposition into core and plugin modules.The user wants me to decompose the planning phase into individual modules following the modular + plugin architecture patterns described in the documents.
+Looking at the documents, I can see:
+
+Plugin architecture with entry points
+Module structure patterns (MP-XXX, DA-XXX, WG-XXX, WE-XXX)
+Core vs Plugin separation
+Lifecycle events
+SafePatch patterns
+Operating contract requirements
+
+For the planning phase, I need to break it down into:
+
+Core orchestration modules (non-negotiable pipeline steps)
+Plugin modules (domain-specific, swappable components)
+Data structures that flow between them
+Contracts/interfaces each module must implement
+
+Let me structure this as:
+
+Core Planning Modules (cannot be plugins - orchestration layer)
+Planning Plugin Modules (domain-specific, extensible)
+Module Specifications with contracts
+Data flow between modules
+Entry point registration patterns
+
+Looking at the planning phase specifically (Workflow Step 2), I need to decompose:
+
+Input ingestion/validation
+Context gathering
+AI tool dispatch
+Plan generation
+Plan validation
+Plan decomposition
+Workstream generation
+Checkpoint creation
+
+These should follow the patterns in the documents:
+
+Module IDs like MP-XXX, PL-XXX (planning modules)
+plugin.spec.json for each plugin
+Entry points registration
+SafePatch boundaries
+JSONL logging
+State machine integration
+I'll decompose the planning phase into individual modules following the modular + plugin architecture patterns from your documents.
+
+Planning Phase Module Decomposition
+Architecture Overview
+┌─────────────────────────────────────────────────────────────────┐
+│                     PLANNING PHASE (Step 2)                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  CORE MODULES (Orchestration - Non-Plugin)                      │
+│  ├─ PL-ORCH  Planning Orchestrator                              │
+│  ├─ PL-STATE  Planning State Machine                            │
+│  └─ PL-CHECK  Planning Checkpoint Manager                       │
+│                                                                   │
+│  PLUGIN MODULES (Domain-Specific - Swappable)                   │
+│  ├─ PL-INGEST  Input Ingestion & Validation                     │
+│  ├─ PL-CTX     Context Broker Integration                       │
+│  ├─ PL-AGENT   AI Agent Dispatcher                              │
+│  ├─ PL-PARSE   Plan Parser & Validator                          │
+│  ├─ PL-DECOMP  Plan Decomposer                                  │
+│  └─ PL-WSTREAM Workstream Generator                             │
+│                                                                   │
+│  UTILITY MODULES (Shared Infrastructure)                        │
+│  ├─ PL-LEDGER  Planning Event Logger                            │
+│  └─ PL-SCHEMA  Schema Registry                                  │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+
+1. CORE MODULE: PL-ORCH (Planning Orchestrator)
+Category: Core Orchestration (Not a Plugin)
+Lifecycle Event: N/A (owns the lifecycle)
+Purpose: Sequences all planning sub-phases deterministically
+Module Structure
+core/planning/
+├── orchestrator.py              # Main orchestrator
+├── contracts/
+│   ├── planning_contract.yaml   # Orchestration contract
+│   └── module_interface.py      # Module interface definitions
+├── state_machine.py             # Planning state tracking
+└── tests/
+    ├── test_orchestrator.py
+    └── test_state_machine.py
+Responsibilities
+
+Orchestrate Planning Sequence
+
+Load planning configuration
+Discover available planning plugins via entry points
+Execute plugins in dependency order
+Manage state transitions (PENDING → RUNNING → COMPLETED/FAILED)
+
+
+Handle Planning Failures
+
+Catch plugin exceptions
+Execute rollback strategies
+Log failures to ledger
+Abort with clean state
+
+
+Enforce Determinism
+
+Same input → same plugin invocation order
+No random plugin selection
+Reproducible execution flow
+
+
+
+API Contract
+python# core/planning/contracts/module_interface.py
+
+from typing import Protocol, Dict, Any
+from pathlib import Path
+from dataclasses import dataclass
+
+@dataclass
+class PlanningContext:
+    """Shared context passed between planning modules"""
+    run_id: str
+    run_path: Path
+    prompt_text: str
+    repository_root: Path
+    config: Dict[str, Any]
+    ledger_writer: Any  # LedgerWriter instance
+    
+class PlanningModule(Protocol):
+    """Interface all planning plugins must implement"""
+    
+    NAME: str
+    VERSION: str
+    PHASE: str  # "ingest", "context", "generate", "validate", "decompose"
+    DEPENDENCIES: list[str]  # List of module NAMEs this depends on
+    
+    def execute(self, context: PlanningContext) -> PlanningResult:
+        """
+        Execute this planning module.
+        
+        Args:
+            context: Shared planning context with inputs from prior modules
+            
+        Returns:
+            PlanningResult with outputs and status
+            
+        Raises:
+            PlanningError: If module execution fails
+        """
+        ...
+    
+    def validate_preconditions(self, context: PlanningContext) -> bool:
+        """Check if preconditions for this module are met"""
+        ...
+    
+    def rollback(self, context: PlanningContext) -> None:
+        """Rollback any changes made by this module"""
+        ...
+
+@dataclass
+class PlanningResult:
+    """Result from a planning module execution"""
+    success: bool
+    outputs: Dict[str, Any]  # Key outputs for downstream modules
+    metrics: Dict[str, Any]  # Performance metrics
+    warnings: list[str]
+    errors: list[str]
+Orchestrator Implementation
+python# core/planning/orchestrator.py
+
+import ulid
+from pathlib import Path
+from typing import Dict, Any, List
+from importlib.metadata import entry_points
+from core.planning.contracts.module_interface import (
+    PlanningContext, PlanningModule, PlanningResult
+)
+from core.state_machine.pipeline import PipelineTaskExecution
+
+class PlanningOrchestrator:
+    """
+    Core orchestrator for planning phase.
+    Discovers and executes planning plugins in dependency order.
+    """
+    
+    ENTRY_POINT_GROUP = "r_pipeline.planning"
+    
+    def __init__(self, run_id: str, run_path: Path, config: Dict[str, Any]):
+        self.run_id = run_id
+        self.run_path = run_path
+        self.config = config
+        self.modules: Dict[str, PlanningModule] = {}
+        self.execution_order: List[str] = []
+        
+        # Discover planning modules
+        self._discover_modules()
+        
+        # Build execution order via topological sort
+        self._compute_execution_order()
+        
+    def _discover_modules(self) -> None:
+        """Discover planning modules via entry points"""
+        eps = entry_points()
+        if hasattr(eps, 'select'):  # Python 3.10+
+            planning_eps = eps.select(group=self.ENTRY_POINT_GROUP)
+        else:  # Python 3.9
+            planning_eps = eps.get(self.ENTRY_POINT_GROUP, [])
+        
+        for ep in planning_eps:
+            try:
+                module_class = ep.load()
+                module_instance = module_class()
+                self.modules[module_instance.NAME] = module_instance
+                print(f"Loaded planning module: {module_instance.NAME} v{module_instance.VERSION}")
+            except Exception as e:
+                print(f"Failed to load {ep.name}: {e}")
+    
+    def _compute_execution_order(self) -> None:
+        """Topological sort of modules based on dependencies"""
+        from core.scheduler.dag import topo_sort
+        
+        tasks = []
+        for name, module in self.modules.items():
+            tasks.append({
+                "id": name,
+                "dependencies": module.DEPENDENCIES,
+                "priority": self._get_phase_priority(module.PHASE)
+            })
+        
+        ordered = topo_sort(tasks)
+        self.execution_order = [task["id"] for task in ordered]
+        print(f"Planning execution order: {self.execution_order}")
+    
+    def _get_phase_priority(self, phase: str) -> int:
+        """Map phase to priority (lower = earlier)"""
+        phase_order = {
+            "ingest": 0,
+            "context": 1,
+            "generate": 2,
+            "validate": 3,
+            "decompose": 4
+        }
+        return phase_order.get(phase, 99)
+    
+    def execute_planning(
+        self,
+        prompt_text: str,
+        repository_root: Path
+    ) -> PlanningResult:
+        """
+        Execute full planning phase.
+        
+        Returns:
+            Aggregated PlanningResult
+        """
+        # Create planning context
+        context = PlanningContext(
+            run_id=self.run_id,
+            run_path=self.run_path,
+            prompt_text=prompt_text,
+            repository_root=repository_root,
+            config=self.config,
+            ledger_writer=None  # TODO: inject ledger
+        )
+        
+        # Create state machine for planning task
+        states = self._load_state_config()
+        state_machine = PipelineTaskExecution(
+            task_id="task_003_planning",
+            states=states,
+            initial_state="PENDING",
+            run_id=self.run_id
+        )
+        
+        state_machine.transition("RUNNING")
+        
+        try:
+            # Execute modules in order
+            all_outputs = {}
+            for module_name in self.execution_order:
+                module = self.modules[module_name]
+                
+                print(f"\n=== Executing: {module_name} ({module.PHASE}) ===")
+                
+                # Check preconditions
+                if not module.validate_preconditions(context):
+                    raise PlanningError(
+                        f"Preconditions not met for {module_name}"
+                    )
+                
+                # Execute module
+                result = module.execute(context)
+                
+                if not result.success:
+                    raise PlanningError(
+                        f"{module_name} failed: {result.errors}"
+                    )
+                
+                # Store outputs for downstream modules
+                all_outputs[module_name] = result.outputs
+                
+                # Update context with new outputs
+                context.config.update(result.outputs)
+            
+            # Transition to completed
+            state_machine.transition("COMPLETED", context={
+                "outputs": all_outputs
+            })
+            
+            return PlanningResult(
+                success=True,
+                outputs=all_outputs,
+                metrics={},
+                warnings=[],
+                errors=[]
+            )
+            
+        except Exception as e:
+            # Rollback in reverse order
+            for module_name in reversed(self.execution_order):
+                try:
+                    self.modules[module_name].rollback(context)
+                except Exception as rollback_err:
+                    print(f"Rollback failed for {module_name}: {rollback_err}")
+            
+            state_machine.transition("FAILED", context={"error": str(e)})
+            raise
+
+    def _load_state_config(self) -> Dict:
+        """Load state machine configuration"""
+        return {
+            "PENDING": {
+                "allowed_transitions": ["RUNNING", "CANCELLED"]
+            },
+            "RUNNING": {
+                "allowed_transitions": ["COMPLETED", "FAILED"]
+            },
+            "COMPLETED": {
+                "allowed_transitions": []
+            },
+            "FAILED": {
+                "allowed_transitions": ["PENDING"]  # Allow retry
+            }
+        }
+
+class PlanningError(Exception):
+    """Planning phase error"""
+    pass
+```
+
+---
+
+## 2. PLUGIN MODULE: PL-INGEST (Input Ingestion & Validation)
+
+**Category:** Planning Plugin  
+**Phase:** ingest  
+**Lifecycle Event:** OnPlanningStart  
+**Purpose:** Read, validate, and normalize prompt input
+
+### Module Structure
+```
+plugins/planning/ingest/
+├── plugin.spec.json             # Plugin specification
+├── PL-INGEST.py                 # Main plugin
+├── validators/
+│   ├── prompt_validator.py
+│   └── schema_validator.py
+├── schemas/
+│   └── prompt.schema.json
+├── tests/
+│   └── test_ingest.py
+└── README_PLUGIN.md
+Plugin Specification
+json{
+  "plugin_name": "Input Ingestion Plugin",
+  "plugin_id": "PL-INGEST",
+  "version": "1.0.0",
+  "lifecycle_event": "OnPlanningStart",
+  "description": "Ingests and validates planning prompt inputs",
+  
+  "inputs": [
+    "prompt_file_path",
+    "repository_root"
+  ],
+  
+  "outputs": [
+    "validated_prompt",
+    "prompt_metadata",
+    "prompt_hash"
+  ],
+  
+  "allowed_actions": [
+    "read_file",
+    "validate_schema",
+    "compute_hash"
+  ],
+  
+  "forbidden_actions": [
+    "write_file",
+    "modify_repository"
+  ],
+  
+  "dependencies": [],
+  
+  "policy_pack_version": "1.0.0",
+  
+  "ledger_required_fields": [
+    "prompt_hash",
+    "validation_status",
+    "file_size"
+  ]
+}
+Implementation
+python# plugins/planning/ingest/PL-INGEST.py
+
+from pathlib import Path
+from typing import Dict, Any
+import hashlib
+import json
+from dataclasses import dataclass
+
+class InputIngestionPlugin:
+    """
+    Plugin: PL-INGEST
+    Ingests and validates planning prompt inputs.
+    """
+    
+    NAME = "PL-INGEST"
+    VERSION = "1.0.0"
+    PHASE = "ingest"
+    DEPENDENCIES = []
+    
+    def __init__(self):
+        self.schema_path = Path(__file__).parent / "schemas" / "prompt.schema.json"
+    
+    def validate_preconditions(self, context) -> bool:
+        """Check prompt file exists"""
+        prompt_path = context.run_path / "prompt.md"
+        return prompt_path.exists()
+    
+    def execute(self, context) -> Dict[str, Any]:
+        """
+        Read and validate prompt input.
+        
+        Returns:
+            PlanningResult with validated prompt
+        """
+        from core.planning.contracts.module_interface import PlanningResult
+        
+        # BEGIN AUTO SECTION: INPUT_INGESTION
+        prompt_path = context.run_path / "prompt.md"
+        
+        # Read prompt
+        prompt_text = prompt_path.read_text(encoding='utf-8')
+        
+        # Validate size
+        if len(prompt_text) > 100_000:  # 100KB limit
+            return PlanningResult(
+                success=False,
+                outputs={},
+                metrics={},
+                warnings=[],
+                errors=["Prompt exceeds 100KB size limit"]
+            )
+        
+        # Compute hash for reproducibility
+        prompt_hash = hashlib.sha256(prompt_text.encode()).hexdigest()
+        
+        # Extract metadata (if structured prompt)
+        metadata = self._extract_metadata(prompt_text)
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "prompt_ingested",
+            "module": self.NAME,
+            "prompt_hash": prompt_hash,
+            "file_size": len(prompt_text),
+            "validation_status": "valid"
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "validated_prompt": prompt_text,
+                "prompt_metadata": metadata,
+                "prompt_hash": prompt_hash
+            },
+            metrics={
+                "prompt_length": len(prompt_text),
+                "line_count": prompt_text.count('\n')
+            },
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: INPUT_INGESTION
+    
+    def _extract_metadata(self, prompt_text: str) -> Dict[str, Any]:
+        """Extract metadata from prompt if present"""
+        # Check for YAML frontmatter
+        if prompt_text.startswith('---'):
+            lines = prompt_text.split('\n')
+            if '---' in lines[1:]:
+                end_idx = lines[1:].index('---') + 1
+                import yaml
+                frontmatter = '\n'.join(lines[1:end_idx])
+                return yaml.safe_load(frontmatter)
+        return {}
+    
+    def rollback(self, context) -> None:
+        """No rollback needed for read-only operation"""
+        pass
+
+# Entry point registration
+def get_planning_module():
+    """Entry point factory"""
+    return InputIngestionPlugin
+Entry Point Registration (pyproject.toml)
+toml[project.entry-points."r_pipeline.planning"]
+ingest = "plugins.planning.ingest.PL-INGEST:get_planning_module"
+
+3. PLUGIN MODULE: PL-CTX (Context Broker Integration)
+Category: Planning Plugin
+Phase: context
+Purpose: Gather relevant repository context for AI planning
+Plugin Specification
+json{
+  "plugin_name": "Context Broker Plugin",
+  "plugin_id": "PL-CTX",
+  "version": "1.0.0",
+  "lifecycle_event": "OnContextGather",
+  "description": "Filters repository files for AI context",
+  
+  "inputs": [
+    "validated_prompt",
+    "repository_root"
+  ],
+  
+  "outputs": [
+    "context_manifest",
+    "relevant_files",
+    "token_estimate"
+  ],
+  
+  "dependencies": ["PL-INGEST"],
+  
+  "allowed_actions": [
+    "read_files",
+    "compute_relevance_scores",
+    "filter_by_tokens"
+  ],
+  
+  "ledger_required_fields": [
+    "files_selected",
+    "total_tokens",
+    "relevance_threshold"
+  ]
+}
+Implementation
+python# plugins/planning/context/PL-CTX.py
+
+from pathlib import Path
+import subprocess
+import json
+
+class ContextBrokerPlugin:
+    """
+    Plugin: PL-CTX
+    Integrates with context broker to select relevant files.
+    """
+    
+    NAME = "PL-CTX"
+    VERSION = "1.0.0"
+    PHASE = "context"
+    DEPENDENCIES = ["PL-INGEST"]
+    
+    def __init__(self):
+        self.broker_script = Path("tools/context_broker.py")
+        self.max_tokens = 150_000  # Claude Code context window
+    
+    def validate_preconditions(self, context) -> bool:
+        """Check context broker exists"""
+        return self.broker_script.exists()
+    
+    def execute(self, context):
+        """
+        Select relevant files using context broker.
+        """
+        from core.planning.contracts.module_interface import PlanningResult
+        
+        # BEGIN AUTO SECTION: CONTEXT_GATHERING
+        
+        # Extract keywords from prompt
+        keywords = self._extract_keywords(context.config["validated_prompt"])
+        
+        # Call context broker
+        manifest_path = context.run_path / "artifacts" / "context_manifest.json"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        cmd = [
+            "python",
+            str(self.broker_script),
+            "--root", str(context.repository_root),
+            "--out", str(manifest_path),
+            "--task-type", "plan",
+            "--max-tokens", str(self.max_tokens),
+            "--keywords"
+        ] + keywords
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            return PlanningResult(
+                success=False,
+                outputs={},
+                metrics={},
+                warnings=[],
+                errors=[f"Context broker failed: {result.stderr}"]
+            )
+        
+        # Load manifest
+        with manifest_path.open() as f:
+            manifest = json.load(f)
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "context_gathered",
+            "module": self.NAME,
+            "files_selected": manifest["total_files"],
+            "total_tokens": manifest["total_tokens"],
+            "relevance_threshold": 0.7
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "context_manifest": manifest,
+                "relevant_files": [f["path"] for f in manifest["files"]],
+                "token_estimate": manifest["total_tokens"]
+            },
+            metrics={
+                "files_selected": manifest["total_files"],
+                "token_budget_used": manifest["total_tokens"] / self.max_tokens
+            },
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: CONTEXT_GATHERING
+    
+    def _extract_keywords(self, prompt: str) -> list[str]:
+        """Extract relevant keywords from prompt"""
+        # Simple implementation - could be enhanced with NLP
+        import re
+        words = re.findall(r'\b\w+\b', prompt.lower())
+        # Filter common words, keep technical terms
+        stopwords = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at'}
+        keywords = [w for w in words if w not in stopwords and len(w) > 3]
+        return list(set(keywords))[:10]  # Top 10 unique keywords
+    
+    def rollback(self, context) -> None:
+        """Clean up manifest file"""
+        manifest_path = context.run_path / "artifacts" / "context_manifest.json"
+        if manifest_path.exists():
+            manifest_path.unlink()
+
+4. PLUGIN MODULE: PL-AGENT (AI Agent Dispatcher)
+Category: Planning Plugin
+Phase: generate
+Purpose: Dispatch AI planning tools (Claude Code / Aider)
+Plugin Specification
+json{
+  "plugin_name": "AI Agent Dispatcher",
+  "plugin_id": "PL-AGENT",
+  "version": "1.0.0",
+  "lifecycle_event": "OnPlanGenerate",
+  "description": "Dispatches AI agents for plan generation",
+  
+  "inputs": [
+    "validated_prompt",
+    "context_manifest",
+    "relevant_files"
+  ],
+  
+  "outputs": [
+    "raw_plan",
+    "agent_used",
+    "generation_metrics"
+  ],
+  
+  "dependencies": ["PL-INGEST", "PL-CTX"],
+  
+  "allowed_actions": [
+    "invoke_claude_code",
+    "invoke_aider",
+    "capture_agent_output"
+  ],
+  
+  "ledger_required_fields": [
+    "agent_name",
+    "agent_version",
+    "tokens_consumed",
+    "generation_time_ms"
+  ]
+}
+Implementation
+python# plugins/planning/agent/PL-AGENT.py
+
+import subprocess
+import json
+import time
+from pathlib import Path
+
+class AIAgentDispatcherPlugin:
+    """
+    Plugin: PL-AGENT
+    Dispatches AI planning agents with fallback strategy.
+    """
+    
+    NAME = "PL-AGENT"
+    VERSION = "1.0.0"
+    PHASE = "generate"
+    DEPENDENCIES = ["PL-INGEST", "PL-CTX"]
+    
+    def __init__(self):
+        self.primary_agent = "claude-code"
+        self.fallback_agent = "aider"
+    
+    def validate_preconditions(self, context) -> bool:
+        """Check at least one agent is available"""
+        return (
+            self._is_available("claude-code") or
+            self._is_available("aider")
+        )
+    
+    def execute(self, context):
+        """
+        Generate plan using AI agent.
+        """
+        from core.planning.contracts.module_interface import PlanningResult
+        
+        # BEGIN AUTO SECTION: AGENT_DISPATCH
+        
+        start_time = time.time()
+        
+        # Try primary agent first
+        if self._is_available(self.primary_agent):
+            result = self._invoke_claude_code(context)
+        elif self._is_available(self.fallback_agent):
+            result = self._invoke_aider(context)
+        else:
+            return PlanningResult(
+                success=False,
+                outputs={},
+                metrics={},
+                warnings=[],
+                errors=["No AI agents available"]
+            )
+        
+        generation_time = (time.time() - start_time) * 1000  # ms
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "plan_generated",
+            "module": self.NAME,
+            "agent_name": result["agent"],
+            "agent_version": result.get("version", "unknown"),
+            "tokens_consumed": result.get("tokens", 0),
+            "generation_time_ms": generation_time
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "raw_plan": result["plan"],
+                "agent_used": result["agent"],
+                "generation_metrics": {
+                    "time_ms": generation_time,
+                    "tokens": result.get("tokens", 0)
+                }
+            },
+            metrics={
+                "generation_time_ms": generation_time
+            },
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: AGENT_DISPATCH
+    
+    def _invoke_claude_code(self, context) -> dict:
+        """
+        Invoke Claude Code CLI for planning.
+        Uses --output-style yaml-plan for structured output.
+        """
+        # Build command
+        cmd = [
+            "claude-code",
+            "plan",
+            "--no-tui",
+            "--output-style", "yaml-plan"
+        ]
+        
+        # Add context files
+        for file_path in context.config["relevant_files"]:
+            cmd.extend(["--file", file_path])
+        
+        # Add prompt as final argument
+        cmd.append(context.config["validated_prompt"])
+        
+        # Execute
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+            cwd=context.repository_root
+        )
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"Claude Code failed: {result.stderr}")
+        
+        # Parse YAML output
+        import yaml
+        plan = yaml.safe_load(result.stdout)
+        
+        return {
+            "agent": "claude-code",
+            "plan": plan,
+            "version": self._get_agent_version("claude-code")
+        }
+    
+    def _invoke_aider(self, context) -> dict:
+        """
+        Invoke Aider for planning (fallback).
+        """
+        # Aider is primarily for execution, but can generate plans
+        cmd = [
+            "aider",
+            "--model", "deepseek",
+            "--message", f"Generate execution plan for: {context.config['validated_prompt']}"
+        ]
+        
+        # Add context files
+        for file_path in context.config["relevant_files"]:
+            cmd.extend(["--read", file_path])
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            cwd=context.repository_root
+        )
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"Aider failed: {result.stderr}")
+        
+        # Parse output (Aider output may need cleanup)
+        plan_text = result.stdout
+        
+        return {
+            "agent": "aider",
+            "plan": {"raw_text": plan_text},
+            "version": self._get_agent_version("aider")
+        }
+    
+    def _is_available(self, agent: str) -> bool:
+        """Check if agent is installed"""
+        try:
+            subprocess.run(
+                [agent, "--version"],
+                capture_output=True,
+                timeout=5
+            )
+            return True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+    
+    def _get_agent_version(self, agent: str) -> str:
+        """Get agent version"""
+        try:
+            result = subprocess.run(
+                [agent, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            return result.stdout.strip()
+        except:
+            return "unknown"
+    
+    def rollback(self, context) -> None:
+        """No rollback needed - agent invocation is read-only"""
+        pass
+
+5. PLUGIN MODULE: PL-PARSE (Plan Parser & Validator)
+Category: Planning Plugin
+Phase: validate
+Purpose: Parse and validate AI-generated plan
+Plugin Specification
+json{
+  "plugin_name": "Plan Parser & Validator",
+  "plugin_id": "PL-PARSE",
+  "version": "1.0.0",
+  "lifecycle_event": "OnPlanValidate",
+  "description": "Parses and validates execution plans",
+  
+  "inputs": [
+    "raw_plan",
+    "agent_used"
+  ],
+  
+  "outputs": [
+    "parsed_plan",
+    "validation_report",
+    "plan_hash"
+  ],
+  
+  "dependencies": ["PL-AGENT"],
+  
+  "allowed_actions": [
+    "parse_yaml",
+    "parse_json",
+    "validate_schema",
+    "detect_security_issues"
+  ],
+  
+  "ledger_required_fields": [
+    "plan_hash",
+    "validation_status",
+    "schema_version",
+    "security_issues"
+  ]
+}
+Implementation
+python# plugins/planning/parse/PL-PARSE.py
+
+import hashlib
+import json
+from typing import Dict, Any, List
+from pathlib import Path
+
+class PlanParserPlugin:
+    """
+    Plugin: PL-PARSE
+    Parses and validates execution plans from AI agents.
+    """
+    
+    NAME = "PL-PARSE"
+    VERSION = "1.0.0"
+    PHASE = "validate"
+    DEPENDENCIES = ["PL-AGENT"]
+    
+    def __init__(self):
+        self.schema_path = Path(__file__).parent / "schemas" / "execution_plan.schema.json"
+    
+    def validate_preconditions(self, context) -> bool:
+        """Check raw plan exists"""
+        return "raw_plan" in context.config
+    
+    def execute(self, context):
+        """
+        Parse and validate execution plan.
+        """
+        from core.planning.contracts.module_interface import PlanningResult
+        
+        # BEGIN AUTO SECTION: PLAN_PARSING
+        
+        raw_plan = context.config["raw_plan"]
+        agent_used = context.config["agent_used"]
+        
+        # Parse plan based on agent format
+        if agent_used == "claude-code":
+            parsed_plan = self._parse_yaml_plan(raw_plan)
+        else:
+            parsed_plan = self._parse_text_plan(raw_plan)
+        
+        # Validate schema
+        validation_errors = self._validate_plan_schema(parsed_plan)
+        if validation_errors:
+            return PlanningResult(
+                success=False,
+                outputs={},
+                metrics={},
+                warnings=[],
+                errors=validation_errors
+            )
+        
+        # Security validation
+        security_issues = self._detect_security_issues(parsed_plan)
+        if security_issues:
+            return PlanningResult(
+                success=False,
+                outputs={},
+                metrics={},
+                warnings=[],
+                errors=[f"Security issues: {security_issues}"]
+            )
+        
+        # Compute plan hash
+        plan_json = json.dumps(parsed_plan, sort_keys=True)
+        plan_hash = hashlib.sha256(plan_json.encode()).hexdigest()
+        
+        # Write plan to file
+        plan_path = context.run_path / "artifacts" / "execution_plan.yaml"
+        import yaml
+        with plan_path.open('w') as f:
+            yaml.dump(parsed_plan, f, default_flow_style=False)
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "plan_validated",
+            "module": self.NAME,
+            "plan_hash": plan_hash,
+            "validation_status": "valid",
+            "schema_version": "1.0.0",
+            "security_issues": 0
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "parsed_plan": parsed_plan,
+                "validation_report": {
+                    "status": "valid",
+                    "errors": [],
+                    "warnings": []
+                },
+                "plan_hash": plan_hash,
+                "plan_path": str(plan_path)
+            },
+            metrics={
+                "plan_size": len(plan_json),
+                "workstreams": len(parsed_plan.get("workstreams", []))
+            },
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: PLAN_PARSING
+    
+    def _parse_yaml_plan(self, raw_plan: dict) -> dict:
+        """Parse YAML plan from Claude Code"""
+        # Already parsed if dict
+        if isinstance(raw_plan, dict):
+            return raw_plan
+        
+        import yaml
+        return yaml.safe_load(raw_plan)
+    
+    def _parse_text_plan(self, raw_plan: dict) -> dict:
+        """Parse text plan from Aider"""
+        # Extract structured data from text
+        # This is a simplified parser - real impl would be more robust
+        text = raw_plan.get("raw_text", "")
+        
+        return {
+            "version": "1.0.0",
+            "workstreams": [{
+                "id": "ws-001",
+                "description": text[:200],  # First 200 chars
+                "modifications": []
+            }]
+        }
+    
+    def _validate_plan_schema(self, plan: dict) -> List[str]:
+        """Validate plan against schema"""
+        errors = []
+        
+        # Required fields
+        if "workstreams" not in plan:
+            errors.append("Missing required field: workstreams")
+        
+        if "version" not in plan:
+            errors.append("Missing required field: version")
+        
+        # Validate workstreams
+        for ws in plan.get("workstreams", []):
+            if "id" not in ws:
+                errors.append(f"Workstream missing id: {ws}")
+        
+        return errors
+    
+    def _detect_security_issues(self, plan: dict) -> List[str]:
+        """Detect security issues in plan"""
+        issues = []
+        
+        # Check for path traversal
+        for ws in plan.get("workstreams", []):
+            for mod in ws.get("modifications", []):
+                path = mod.get("path", "")
+                if ".." in path or path.startswith("/"):
+                    issues.append(f"Path traversal detected: {path}")
+        
+        return issues
+    
+    def rollback(self, context) -> None:
+        """Delete generated plan file"""
+        plan_path = context.run_path / "artifacts" / "execution_plan.yaml"
+        if plan_path.exists():
+            plan_path.unlink()
+
+6. PLUGIN MODULE: PL-DECOMP (Plan Decomposer)
+Category: Planning Plugin
+Phase: decompose
+Purpose: Decompose plan into modification tasks with dependencies
+Plugin Specification
+json{
+  "plugin_name": "Plan Decomposer",
+  "plugin_id": "PL-DECOMP",
+  "version": "1.0.0",
+  "lifecycle_event": "OnPlanDecompose",
+  "description": "Decomposes plans into individual modifications",
+  
+  "inputs": [
+    "parsed_plan",
+    "repository_root"
+  ],
+  
+  "outputs": [
+    "modifications",
+    "dependency_graph",
+    "modification_count"
+  ],
+  
+  "dependencies": ["PL-PARSE"],
+  
+  "ledger_required_fields": [
+    "total_modifications",
+    "create_count",
+    "edit_count",
+    "delete_count"
+  ]
+}
+Implementation Summary (See Module MP-XXX from earlier docs for full implementation)
+python# plugins/planning/decompose/PL-DECOMP.py
+
+class PlanDecomposerPlugin:
+    """
+    Plugin: PL-DECOMP
+    Decomposes execution plan into individual modifications.
+    Uses Modification Plan Parser (MP-XXX) under the hood.
+    """
+    
+    NAME = "PL-DECOMP"
+    VERSION = "1.0.0"
+    PHASE = "decompose"
+    DEPENDENCIES = ["PL-PARSE"]
+    
+    def execute(self, context):
+        """
+        Decompose plan into modifications with dependencies.
+        """
+        # BEGIN AUTO SECTION: PLAN_DECOMPOSITION
+        
+        parsed_plan = context.config["parsed_plan"]
+        
+        # Extract all modifications from workstreams
+        all_modifications = []
+        for ws in parsed_plan.get("workstreams", []):
+            for mod in ws.get("modifications", []):
+                all_modifications.append(mod)
+        
+        # Build dependency graph
+        from networkx import DiGraph
+        dep_graph = DiGraph()
+        
+        for mod in all_modifications:
+            mod_id = mod["id"]
+            dep_graph.add_node(mod_id, data=mod)
+            
+            for dep_id in mod.get("dependencies", []):
+                dep_graph.add_edge(dep_id, mod_id)
+        
+        # Count operations
+        op_counts = {
+            "create": sum(1 for m in all_modifications if m["operation"] == "create"),
+            "edit": sum(1 for m in all_modifications if m["operation"] == "edit"),
+            "delete": sum(1 for m in all_modifications if m["operation"] == "delete")
+        }
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "plan_decomposed",
+            "module": self.NAME,
+            "total_modifications": len(all_modifications),
+            "create_count": op_counts["create"],
+            "edit_count": op_counts["edit"],
+            "delete_count": op_counts["delete"]
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "modifications": all_modifications,
+                "dependency_graph": dep_graph,
+                "modification_count": len(all_modifications),
+                "operation_counts": op_counts
+            },
+            metrics=op_counts,
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: PLAN_DECOMPOSITION
+
+7. PLUGIN MODULE: PL-WSTREAM (Workstream Generator)
+Category: Planning Plugin
+Phase: decompose
+Purpose: Group modifications into parallelizable workstreams
+Implementation Summary (See Module WG-XXX for full implementation)
+python# plugins/planning/workstream/PL-WSTREAM.py
+
+import ulid
+
+class WorkstreamGeneratorPlugin:
+    """
+    Plugin: PL-WSTREAM
+    Generates independent workstreams from modifications.
+    Uses Workstream Generator (WG-XXX) under the hood.
+    """
+    
+    NAME = "PL-WSTREAM"
+    VERSION = "1.0.0"
+    PHASE = "decompose"
+    DEPENDENCIES = ["PL-DECOMP"]
+    
+    def execute(self, context):
+        """
+        Generate workstreams optimized for parallel execution.
+        """
+        # BEGIN AUTO SECTION: WORKSTREAM_GENERATION
+        
+        modifications = context.config["modifications"]
+        dep_graph = context.config["dependency_graph"]
+        
+        # Analyze conflicts
+        conflicts = self._detect_file_conflicts(modifications)
+        
+        # Group into workstreams
+        workstreams = []
+        
+        # Strategy: Group by file paths (no conflicts within workstream)
+        file_to_mods = {}
+        for mod in modifications:
+            path = mod.get("path", "")
+            if path not in file_to_mods:
+                file_to_mods[path] = []
+            file_to_mods[path].append(mod)
+        
+        # Create workstream per unique file (simplified)
+        for file_path, mods in file_to_mods.items():
+            ws_id = f"ws-{ulid.new()}"
+            workstreams.append({
+                "wsid": ws_id,
+                "modifications": [m["id"] for m in mods],
+                "file_paths": [file_path],
+                "parallel_group": None,  # Will be assigned later
+                "dependencies": self._compute_ws_dependencies(mods, dep_graph)
+            })
+        
+        # Calculate parallelization score
+        total_pairs = len(workstreams) * (len(workstreams) - 1) / 2
+        conflict_pairs = len(conflicts)
+        parallel_score = 1.0 - (conflict_pairs / total_pairs) if total_pairs > 0 else 1.0
+        
+        # Log to ledger
+        context.ledger_writer.write({
+            "event": "workstreams_generated",
+            "module": self.NAME,
+            "workstream_count": len(workstreams),
+            "parallelization_score": parallel_score,
+            "conflicts_detected": len(conflicts)
+        })
+        
+        return PlanningResult(
+            success=True,
+            outputs={
+                "workstreams": workstreams,
+                "workstream_count": len(workstreams),
+                "parallelization_score": parallel_score,
+                "conflicts": conflicts
+            },
+            metrics={
+                "workstreams": len(workstreams),
+                "parallel_score": parallel_score
+            },
+            warnings=[],
+            errors=[]
+        )
+        # END AUTO SECTION: WORKSTREAM_GENERATION
+    
+    def _detect_file_conflicts(self, modifications) -> list:
+        """Detect modifications to same file"""
+        conflicts = []
+        file_mods = {}
+        
+        for mod in modifications:
+            path = mod.get("path", "")
+            if path not in file_mods:
+                file_mods[path] = []
+            file_mods[path].append(mod["id"])
+        
+        for path, mod_ids in file_mods.items():
+            if len(mod_ids) > 1:
+                conflicts.append({
+                    "file": path,
+                    "conflicting_mods": mod_ids
+                })
+        
+        return conflicts
+    
+    def _compute_ws_dependencies(self, mods, dep_graph) -> list:
+        """Compute workstream-level dependencies"""
+        ws_deps = set()
+        for mod in mods:
+            # Get all predecessors in dep graph
+            if mod["id"] in dep_graph:
+                predecessors = dep_graph.predecessors(mod["id"])
+                ws_deps.update(predecessors)
+        
+        # Remove mods in same workstream
+        mod_ids = {m["id"] for m in mods}
+        return list(ws_deps - mod_ids)
+
+8. UTILITY MODULE: PL-LEDGER (Planning Event Logger)
+Category: Utility (Not a Plugin)
+Purpose: Write planning events to JSONL ledger
+python# core/planning/ledger.py
+
+import json
+import ulid
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Dict, Any
+
+class PlanningLedgerWriter:
+    """
+    Writes planning events to JSONL ledger.
+    Thread-safe, append-only.
+    """
+    
+    def __init__(self, run_id: str, run_path: Path):
+        self.run_id = run_id
+        self.ledger_path = run_path / "logs" / "run.jsonl"
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    def write(self, event: Dict[str, Any]) -> None:
+        """
+        Write event to ledger.
+        
+        Args:
+            event: Event data (will be enriched with metadata)
+        """
+        # Enrich with metadata
+        entry = {
+            "run_id": self.run_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ulid": str(ulid.new()),
+            **event
+        }
+        
+        # Append to ledger (thread-safe)
+        with self.ledger_path.open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+```
+
+---
+
+## 9. Module Interaction Flow
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  PLANNING PHASE EXECUTION                    │
+└─────────────────────────────────────────────────────────────┘
+
+1. PL-ORCH (Orchestrator)
+   │
+   ├──> 2. PL-INGEST (Ingest)
+   │    │
+   │    ├─ Read prompt.md
+   │    ├─ Validate schema
+   │    ├─ Compute hash
+   │    └─ Output: validated_prompt
+   │
+   ├──> 3. PL-CTX (Context)
+   │    │
+   │    ├─ Extract keywords from prompt
+   │    ├─ Call context_broker.py
+   │    ├─ Filter files by relevance
+   │    └─ Output: context_manifest, relevant_files
+   │
+   ├──> 4. PL-AGENT (Agent Dispatch)
+   │    │
+   │    ├─ Build command with context files
+   │    ├─ Invoke claude-code plan
+   │    ├─ Capture YAML output
+   │    └─ Output: raw_plan
+   │
+   ├──> 5. PL-PARSE (Parse & Validate)
+   │    │
+   │    ├─ Parse YAML/JSON
+   │    ├─ Validate schema
+   │    ├─ Security checks
+   │    ├─ Write execution_plan.yaml
+   │    └─ Output: parsed_plan
+   │
+   ├──> 6. PL-DECOMP (Decompose)
+   │    │
+   │    ├─ Extract all modifications
+   │    ├─ Build dependency graph
+   │    ├─ Count operations
+   │    └─ Output: modifications, dependency_graph
+   │
+   ├──> 7. PL-WSTREAM (Workstream Gen)
+   │    │
+   │    ├─ Detect file conflicts
+   │    ├─ Group into workstreams
+   │    ├─ Calculate parallel score
+   │    └─ Output: workstreams, parallelization_score
+   │
+   └──> 8. PL-CHECK (Checkpoint)
+        │
+        ├─ Git commit execution_plan.yaml
+        ├─ Tag: checkpoint(plan-complete)
+        └─ Write final ledger entry
+
+10. Entry Point Registration (pyproject.toml)
+toml[project]
+name = "r-pipeline-planning"
+version = "1.0.0"
+
+[project.entry-points."r_pipeline.planning"]
+ingest = "plugins.planning.ingest.PL-INGEST:get_planning_module"
+context = "plugins.planning.context.PL-CTX:get_planning_module"
+agent = "plugins.planning.agent.PL-AGENT:get_planning_module"
+parse = "plugins.planning.parse.PL-PARSE:get_planning_module"
+decompose = "plugins.planning.decompose.PL-DECOMP:get_planning_module"
+workstream = "plugins.planning.workstream.PL-WSTREAM:get_planning_module"
+
+11. Testing Strategy
+Unit Tests (Per Module)
+python# tests/unit/planning/test_ingest.py
+
+def test_ingest_valid_prompt():
+    plugin = InputIngestionPlugin()
+    context = create_mock_context(prompt="Valid prompt")
+    result = plugin.execute(context)
+    assert result.success
+    assert "validated_prompt" in result.outputs
+
+def test_ingest_oversized_prompt():
+    plugin = InputIngestionPlugin()
+    context = create_mock_context(prompt="x" * 200_000)
+    result = plugin.execute(context)
+    assert not result.success
+    assert "exceeds" in result.errors[0]
+Integration Tests
+python# tests/integration/test_planning_pipeline.py
+
+def test_full_planning_pipeline(tmp_repo):
+    # Setup
+    run_id = str(ulid.new())
+    config = {"max_tokens": 150000}
+    
+    # Create orchestrator
+    orchestrator = PlanningOrchestrator(run_id, tmp_repo, config)
+    
+    # Execute planning
+    result = orchestrator.execute_planning(
+        prompt_text="Add user authentication",
+        repository_root=tmp_repo
+    )
+    
+    # Verify
+    assert result.success
+    assert "workstreams" in result.outputs["PL-WSTREAM"]
+    assert result.outputs["PL-WSTREAM"]["workstream_count"] > 0
+    
+    # Verify ledger
+    ledger_path = tmp_repo / ".runs" / run_id / "logs" / "run.jsonl"
+    assert ledger_path.exists()
+    
+    # Verify checkpoint
+    result = subprocess.run(
+        ["git", "log", "--oneline", "-1"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_repo
+    )
+    assert "checkpoint(plan-complete)" in result.stdout
+
+12. Summary
+Module Count
+
+Core Modules: 3 (Orchestrator, State Machine, Checkpoint)
+Plugin Modules: 6 (Ingest, Context, Agent, Parse, Decompose, Workstream)
+Utility Modules: 2 (Ledger, Schema)
+Total: 11 modules
+
+Key Benefits
+✅ Modularity: Each module has single responsibility
+✅ Extensibility: New plugins via entry points
+✅ Testability: Each module tested in isolation
+✅ Determinism: Same inputs → same outputs
+✅ Observability: Full JSONL audit trail
+✅ Rollback: Each module can revert changes
+✅ Parallelization: Workstreams optimized for concurrency

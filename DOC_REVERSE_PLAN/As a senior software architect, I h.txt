@@ -1,0 +1,614 @@
+As a senior software architect, I have produced the requested research and blueprint for a Deliverables-First Architecture. This response provides actionable guidance and a runnable exemplar project based on proven industry practices.
+
+### Executive Summary
+
+This document outlines a **Deliverables-First Architecture**, a methodology designed to maximize alignment between business requirements and engineering execution. It prioritizes the definition of tangible outputs (*what* we are building) before detailing the work required (*how* we will build it). This approach mitigates common project risks such as scope creep, gold-plating, and a disconnect between requirements and final deliverables.
+
+By integrating established practices like **Architecture Decision Records (ADRs)**, **Product-based Planning (PBS → WBS)**, **Acceptance Test-Driven Development (ATDD/BDD)**, and **Contract-First Interfaces**, this blueprint creates a system of executable, traceable, and verifiable work. Key artifacts like Deliverable Definition Sheets (DDS), a live Requirements Traceability Matrix (RTM), and file-level Definition of Done (DoFD) blocks ensure every piece of code has a clear purpose and its completion is automatically verifiable.
+
+The included exemplar project demonstrates this flow using a common feature—creating an order in an e-commerce system. It provides runnable templates for contracts, tests, and CI pipelines. The accompanying playbook offers a phased rollout strategy for organizations seeking to adopt this rigorous, evidence-based approach to software delivery, improving predictability and quality while reducing waste.
+
+### Assumed Inputs
+
+*   **Domain/Context**: E-commerce SaaS Platform
+*   **Example Feature**: A user creates a new order via a REST API.
+*   **Target Stack**: TypeScript/Node.js 20
+*   **Test Stack**: Cucumber.js + Jest
+*   **Contract Style(s)**: OpenAPI + JSON Schema
+*   **CI**: GitHub Actions
+*   **Constraints**: Request latency < 200ms p95; PII data encrypted at rest.
+*   **Non-functional Priorities**: High evolvability, high testability, operational observability.
+
+### Literature Review
+
+Here is a summary of proven industry practices informing this blueprint, with citations for each source.
+
+1.  **Architecture Decision Records (ADRs)**
+    *   **Source**: *Documenting Architecture Decisions* by Michael Nygard [1].
+    *   **Key Takeaways**: Nygard introduced the concept of lightweight, text-based records for architectural decisions. An ADR captures the context, decision, and consequences for a specific choice. They are stored in the project repository, versioned alongside the code they affect.
+    *   **Blueprint Impact**: The blueprint adopts the MADR (Markdown ADR) template, a popular evolution of Nygard's format. ADRs are a core deliverable for capturing key design choices, linked directly from the RTM and DDS artifacts.
+    *   **Use/Avoid**: Use for significant decisions that affect structure, dependencies, interfaces, or non-functional characteristics. Avoid for trivial, easily reversible decisions.
+
+2.  **Product-Based Planning (PBS)**
+    *   **Source**: *PRINCE2 Agile Foundation* by AXELOS [2].
+    *   **Key Takeaways**: PRINCE2 heavily emphasizes product-based planning. It starts by identifying all the products (deliverables) to be created, forming a Product Breakdown Structure (PBS). The Work Breakdown Structure (WBS) is then derived from the activities needed to create those products.
+    *   **Blueprint Impact**: This "deliverable-first" principle is the cornerstone of the blueprint. We define a PBS of software artifacts (API, schema, test suite) before deriving implementation tasks.
+    *   **Use/Avoid**: Use for projects where scope clarity and tangible outputs are critical. It can feel overly structured for pure research or discovery spikes where the output is unknown.
+
+3.  **Acceptance Test-Driven Development (ATDD) / Behavior-Driven Development (BDD)**
+    *   **Source**: *Specification by Example: How Successful Teams Deliver the Right Software* by Gojko Adzic [3].
+    *   **Key Takeaways**: Adzic demonstrates how teams use executable specifications to create a shared understanding and automate acceptance testing. ATDD/BDD is a collaborative process where developers, testers, and business stakeholders define requirements as concrete, testable examples.
+    *   **Blueprint Impact**: The blueprint uses Gherkin (`.feature` files) to define acceptance criteria upfront. These criteria are directly linked to deliverables in the DDS and are executed in CI.
+    *   **Use/Avoid**: Use for all user-facing features and business-critical system behaviors. Avoid for low-level unit tests or technical tasks with no direct business-facing behavior.
+
+4.  **Contract-First Development**
+    *   **Source**: *Building Microservices, 2nd Edition* by Sam Newman [4].
+    *   **Key Takeaways**: Newman advocates for defining service interfaces with a formal contract (like OpenAPI or Protobuf) before writing implementation code. This decouples teams, enables parallel development, and allows for robust automated contract testing.
+    *   **Blueprint Impact**: Every interface is defined with an OpenAPI contract. These contracts are a primary deliverable and are accompanied by automated tests to ensure implementations conform.
+    *   **Use/Avoid**: Essential for all APIs and service-to-service communication, especially in microservices or multi-team environments. May be overkill for internal, single-module interfaces within a monolith.
+
+5.  **The V-Model**
+    *   **Source**: *Software Engineering, 10th Edition* by Ian Sommerville [5].
+    *   **Key Takeaways**: The V-model illustrates how verification and validation activities should be planned in parallel with each stage of the development lifecycle. For every design activity, there is a corresponding test activity.
+    *   **Blueprint Impact**: This blueprint implements a lightweight V-model. When a deliverable (like an API endpoint) is defined in the PBS, its corresponding verification artifact (acceptance test, contract test) is also defined. The CI plan ensures both are executed.
+    *   **Use/Avoid**: The principle of planning tests with design is universally applicable. Full, formal V-model implementation is best for high-assurance or safety-critical systems. A lighter version is effective for most commercial software.
+
+6.  **Traceability**
+    *   **Source**: *ISO/IEC/IEEE 29148:2018 - Systems and software engineering — Life cycle processes — Requirements engineering* [6].
+    *   **Key Takeaways**: This international standard specifies the need for bidirectional traceability from requirements to system elements and through to tests and other artifacts. This is critical for impact analysis, verification, and compliance.
+    *   **Blueprint Impact**: The RTM (`rtm.csv`) is a live, machine-readable artifact that connects deliverables, requirements (acceptance criteria), tests, evidence, and code files. This provides end-to-end traceability.
+    *   **Use/Avoid**: Essential for regulated industries (finance, health), complex systems, and long-term projects. Manual traceability is burdensome; the blueprint emphasizes automated linking and reporting.
+
+7.  **Gherkin & Cucumber**
+    *   **Source**: The Cucumber.js Documentation [7].
+    *   **Key Takeaways**: Cucumber is the canonical tool for executing specifications written in the Gherkin syntax (`Given/When/Then`). It bridges the gap between plain-text business requirements and automated tests.
+    *   **Blueprint Impact**: The exemplar uses Cucumber.js to make the Gherkin acceptance criteria defined in `.feature` files runnable.
+    *   **Use/Avoid**: Excellent for acceptance and integration tests. Not suitable for unit tests, which are better written in Jest or similar frameworks.
+
+8.  **OpenAPI Specification**
+    *   **Source**: The OpenAPI Initiative [8].
+    *   **Key Takeaways**: The OpenAPI Specification (OAS) is a standard, language-agnostic format for describing RESTful APIs. It allows both humans and computers to discover and understand the capabilities of a service without access to source code.
+    *   **Blueprint Impact**: OAS is used as the contract for the example API. It drives contract testing and can be used to generate client SDKs and documentation.
+    *   **Use/Avoid**: The industry standard for REST APIs. For gRPC-based services, Protobuf would be the equivalent contract language.
+
+### Comparison Matrix
+
+| Technique/Practice | Purpose | Strengths | Tradeoffs | Tooling | Adoption Tips |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **ADRs** | Record significant architectural decisions. | Lightweight, version-controlled, improves team alignment, preserves design rationale. | Can be neglected; requires discipline to maintain. | Markdown, `adr-tools` CLI | Start small. Mandate ADRs for changes crossing team boundaries. Use a linter to check for format. |
+| **PBS → WBS** | Ensure all work is tied to a tangible output. | Reduces gold-plating, improves scope clarity, aligns effort with value. | Can feel rigid; requires a clear upfront definition of "what." | Project mgt. tools, YAML/CSV | Define "deliverable" clearly. It's not just code; it's schemas, test suites, docs. |
+| **ATDD/BDD** | Define and automate acceptance criteria based on system behavior. | Creates shared understanding, produces living documentation, reduces rework. | Gherkin can be verbose; requires collaboration between tech and business roles. | Cucumber, SpecFlow, Behave | Train the whole team. Start with one feature. Ensure business/product stakeholders write or review the Gherkin. |
+| **Contract-First** | Define API/service interfaces before implementation. | Enables parallel work, decouples teams, provides clear integration points, robust testing. | Requires upfront design effort; contract changes can be breaking changes. | OpenAPI, JSON Schema, Protobuf | Use schema validation middleware. Automate contract tests against both provider and consumer. |
+| **V-Model (Light)** | Plan verification activities in parallel with design. | Catches defects early, ensures testability is designed-in, formalizes test planning. | Can be perceived as a rigid, waterfall-like process if applied too strictly. | CI/CD pipelines, Test Plan docs | Link test artifacts to design artifacts (e.g., in the DDS). The goal is parallel thinking, not rigid phases. |
+| **Traceability (RTM)** | Link requirements, deliverables, tests, and code. | Proves requirement coverage, simplifies impact analysis, aids compliance audits. | Can be high-effort to maintain manually. | Jira, YAML/CSV files, custom scripts | Automate as much as possible. Use conventions for IDs (e.g., `DEL-001`, `ACR-101`) to make parsing easier. |
+
+### End-to-End Exemplar: Order Creation Feature
+
+This mini-project demonstrates the full flow for the "User creates a new order" feature.
+
+#### 1. Product Breakdown Structure (PBS)
+
+The PBS lists the *products* or *deliverables* required to realize the feature.
+
+*   **PBS-API**: `POST /orders` API Endpoint (The primary interface)
+*   **PBS-CON**: API Contract (The OpenAPI specification)
+*   **PBS-ACR**: Acceptance Criteria (The Gherkin feature file)
+*   **PBS-ATS**: Acceptance Test Suite (The runnable Cucumber.js tests)
+*   **PBS-CTS**: Contract Test Suite (The Jest tests validating the contract)
+*   **PBS-DDS**: Deliverable Definition Sheets (The YAML files defining each deliverable)
+*   **PBS-RTM**: Requirements Traceability Matrix (The CSV file linking everything)
+*   **PBS-ADR**: Architecture Decision Records (The Markdown files for key decisions)
+
+#### 2. Work Breakdown Structure (WBS)
+
+Derived from the PBS, the WBS lists the *tasks* to create the products.
+
+1.  **Create `PBS-ADR`:**
+    *   1.1. Write ADR for using Contract-First development.
+    *   1.2. Write ADR for choosing TypeScript/Node.js stack.
+2.  **Create `PBS-CON`:**
+    *   2.1. Draft `openapi.yaml` for the `POST /orders` endpoint.
+    *   2.2. Define `CreateOrderRequest` and `Order` JSON Schemas.
+3.  **Create `PBS-ACR`:**
+    *   3.1. Write `user_creates_order.feature` with Gherkin scenarios.
+4.  **Create `PBS-DDS` & `PBS-RTM`:**
+    *   4.1. Create `DEL-001.yaml` DDS for the API endpoint.
+    *   4.2. Populate `rtm.csv` with initial links between deliverables, criteria, and planned files.
+5.  **Create Test Suites (`PBS-ATS`, `PBS-CTS`):**
+    *   5.1. Set up Cucumber.js and write step definitions for `user_creates_order.feature`.
+    *   5.2. Set up Jest and write contract validation tests.
+6.  **Implement `PBS-API`:**
+    *   6.1. Create `src/api/handler.ts` with a placeholder implementation.
+    *   6.2. Add DoFD block to the top of the handler file.
+7.  **Configure CI:**
+    *   7.1. Create `.github/workflows/ci.yml` to run all tests.
+
+#### 3. Repository Layout
+
+```
+.
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── contracts/
+│   ├── openapi.yaml
+│   └── schemas/
+│       ├── CreateOrderRequest.json
+│       └── Order.json
+├── deliverables/
+│   └── DEL-001.yaml
+├── docs/
+│   ├── adr/
+│   │   └── 0001-use-contract-first-development.md
+│   ├── deps.md
+│   └── rtm.csv
+├── src/
+│   └── api/
+│       └── handler.ts
+├── tests/
+│   ├── acceptance/
+│   │   ├── features/
+│   │   │   └── user_creates_order.feature
+│   │   └── step_definitions/
+│   │       └── order_steps.ts
+│   └── contract/
+│       └── openapi.test.ts
+├── cucumber.js
+├── jest.config.js
+└── package.json
+```
+
+#### 4. Blueprint Artifacts
+
+Here are the contents for each file in the repository.
+
+````typescript name=package.json
+{
+  "name": "deliverables-first-exemplar",
+  "version": "1.0.0",
+  "description": "Exemplar project for Deliverables-First Architecture",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "npm run test:contract && npm run test:acceptance",
+    "test:contract": "jest tests/contract",
+    "test:acceptance": "cucumber-js tests/acceptance"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^10.0.1",
+    "@types/jest": "^29.5.8",
+    "jest": "^29.7.0",
+    "openapi-backend": "^5.9.1",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  }
+}
+````
+
+````yaml name=.github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Contract tests
+        run: npm run test:contract
+      - name: Acceptance tests
+        run: npm run test:acceptance
+      - name: Publish evidence
+        run: |
+          mkdir -p reports/acpt
+          npm run test:acceptance -- --format json:reports/acpt/run.json || true
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: acceptance-test-report
+          path: reports/acpt/run.json
+````
+
+````yaml name=contracts/openapi.yaml
+openapi: 3.0.3
+info:
+  title: Order Service
+  version: "0.1.0"
+paths:
+  /orders:
+    post:
+      summary: Create a new order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/CreateOrderRequest.json'
+      responses:
+        "201":
+          description: Order Created Successfully
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/Order.json'
+        "400":
+          description: Invalid request payload
+````
+
+````json name=contracts/schemas/CreateOrderRequest.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CreateOrderRequest",
+  "type": "object",
+  "required": ["customerId", "items"],
+  "properties": {
+    "customerId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["sku", "quantity"],
+        "properties": {
+          "sku": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}
+````
+
+````json name=contracts/schemas/Order.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Order",
+  "type": "object",
+  "required": ["id", "status", "customerId", "items"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["CREATED", "REJECTED", "SHIPPED"] },
+    "customerId": { "type": "string", "format": "uuid" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sku", "quantity"],
+        "properties": {
+          "sku": { "type": "string" },
+          "quantity": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
+````
+
+````yaml name=deliverables/DEL-001.yaml
+id: DEL-001
+name: "API Endpoint: POST /orders"
+purpose: "Allows a client to create a new order in the system."
+acceptance_criteria:
+  - id: ACR-101
+    description: "A valid order request should be accepted and result in a created order."
+    # The Gherkin text is stored in the .feature file, not duplicated here.
+evidence:
+  tests:
+    - path: tests/acceptance/features/user_creates_order.feature
+      proves: [ACR-101]
+    - path: tests/contract/openapi.test.ts
+      proves: [CT-API-01]
+  reports:
+    - path: reports/acpt/run.json
+interfaces:
+  exposes:
+    - name: createOrder
+      contract: contracts/openapi.yaml
+files_must_exist:
+  - src/api/handler.ts
+risks:
+  - "The handler logic may not correctly implement the business rules for order validation."
+links:
+  adr: docs/adr/0001-use-contract-first-development.md
+  rtm_ids: [DEL-001, ACR-101, TEST-ACPT-42, TEST-CT-API-01]
+````
+
+````markdown name=docs/adr/0001-use-contract-first-development.md
+# 1. Use Contract-First Development for All APIs
+
+*   **Status**: Accepted
+*   **Date**: 2025-11-05
+
+*   **Context**: We are building an e-commerce platform with multiple services and potentially multiple client applications (web, mobile). Ensuring clear, stable, and well-documented interfaces between these components is critical for parallel development and long-term maintainability.
+
+*   **Decision**: We will adopt a "Contract-First" development approach for all REST APIs. All new or modified endpoints must have their interface defined in an OpenAPI 3.0 specification *before* implementation begins. This contract will be considered a primary project artifact, versioned in the repository, and used to drive both testing and documentation.
+
+*   **Consequences**:
+    *   **Positive**:
+        *   Enables parallel development: Frontend/client teams can build against mock servers generated from the OpenAPI spec.
+        *   Creates a single source of truth for API behavior.
+        *   Allows for automated contract testing to ensure the implementation never deviates from the spec.
+        *   Improves API design quality by forcing upfront consideration of the interface.
+    *   **Negative**:
+        *   Adds a small amount of upfront process; developers cannot immediately start coding the implementation.
+        *   Requires discipline to keep the contract and implementation in sync (mitigated by contract testing).
+
+*   **Alternatives Considered**:
+    *   **Code-First (or Implementation-First)**: Generate API documentation from code annotations. This is faster to start but often leads to documentation drift, poorly considered API design, and tight coupling between consumer and producer development cycles.
+
+*   **Related ADRs / Links**:
+    *   **DDS**: `deliverables/DEL-001.yaml`
+    *   **Contract**: `contracts/openapi.yaml`
+    *   **RTM**: `docs/rtm.csv`
+````
+
+````csv name=docs/rtm.csv
+type,id,links_to,artifact
+Deliverable,DEL-001,ACR-101;TEST-ACPT-42;FILE-SRC-API-HANDLER,deliverables/DEL-001.yaml
+Acceptance,ACR-101,TEST-ACPT-42,tests/acceptance/features/user_creates_order.feature
+Test,TEST-ACPT-42,EVID-ACPT-42;DEL-001,tests/acceptance/features/user_creates_order.feature
+Test,TEST-CT-API-01,CT-API-01,tests/contract/openapi.test.ts
+Evidence,EVID-ACPT-42,,reports/acpt/run.json
+File,FILE-SRC-API-HANDLER,DEL-001,src/api/handler.ts
+Contract,CT-API-01,TEST-CT-API-01;DEL-001,contracts/openapi.yaml
+````
+
+````markdown name=docs/deps.md
+```mermaid
+graph TD
+    subgraph "Requirement"
+        ACR_101("ACR-101: Valid order is created")
+    end
+
+    subgraph "Deliverable"
+        DEL_001("DEL-001: API Endpoint /orders")
+    end
+    
+    subgraph "Contract"
+        CT_API("CT-API-01: OpenAPI Contract")
+    end
+
+    subgraph "Code"
+        FILE_handler("FILE: src/api/handler.ts")
+    end
+
+    subgraph "Tests & Evidence"
+        TEST_ACPT("TEST-ACPT-42: Acceptance Test")
+        TEST_CT("TEST-CT-API-01: Contract Test")
+        EVID_ACPT("EVID-ACPT-42: CI Report")
+    end
+
+    ACR_101 --> DEL_001
+    DEL_001 --> FILE_handler
+    DEL_001 -- "is verified by" --> TEST_ACPT
+    DEL_001 -- "is specified by" --> CT_API
+    CT_API -- "is verified by" --> TEST_CT
+    TEST_ACPT -- "produces" --> EVID_ACPT
+```
+````
+
+````typescript name=src/api/handler.ts
+/* DoFD:
+ * deliverable: DEL-001
+ * satisfies_acceptance: [ACR-101]
+ * tests_must_pass:
+ *   - tests/acceptance/features/user_creates_order.feature
+ *   - tests/contract/openapi.test.ts
+ * contracts_must_pass:
+ *   - contracts/openapi.yaml
+ */
+
+import { randomUUID } from 'crypto';
+
+// This is a stub implementation. In a real app, this would involve
+// business logic, database calls, etc.
+export const createOrderHandler = (request: any) => {
+  const { customerId, items } = request.body;
+
+  // Basic validation (more would be in a real service)
+  if (!customerId || !items || items.length === 0) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ message: 'Invalid order data' }),
+    };
+  }
+
+  const newOrder = {
+    id: randomUUID(),
+    customerId,
+    items,
+    status: 'CREATED',
+  };
+
+  return {
+    statusCode: 201,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(newOrder),
+  };
+};
+````
+
+````gherkin name=tests/acceptance/features/user_creates_order.feature
+Feature: Order Creation
+  In order to track purchases
+  As a platform client
+  I want to create an order via the API
+
+  @ACR-101
+  Scenario: A valid order is created successfully
+    Given I have a valid "CreateOrderRequest" payload
+    When I send a POST request to "/orders" with the payload
+    Then the response status should be 201
+    And the response body should be a valid "Order" payload with status "CREATED"
+````
+
+````typescript name=tests/acceptance/step_definitions/order_steps.ts
+import { Given, When, Then, setDefaultTimeout } from '@cucumber/cucumber';
+import assert from 'assert';
+import { createOrderHandler } from '../../../src/api/handler'; // In-memory test
+
+setDefaultTimeout(5 * 1000);
+
+let requestPayload: any;
+let response: any;
+
+Given('I have a valid "CreateOrderRequest" payload', function () {
+  requestPayload = {
+    body: {
+      customerId: 'a2b7b5f0-6c39-4d29-aa4a-4b07f0f443e4',
+      items: [{ sku: 'PROD-123', quantity: 2 }],
+    },
+  };
+});
+
+When('I send a POST request to "/orders" with the payload', function () {
+  // In a real scenario, this would be an HTTP request to a running service.
+  // For this exemplar, we call the handler directly for simplicity.
+  response = createOrderHandler(requestPayload);
+});
+
+Then('the response status should be {int}', function (expectedStatus) {
+  assert.strictEqual(response.statusCode, expectedStatus);
+});
+
+Then('the response body should be a valid "Order" payload with status {string}', function (expectedStatus) {
+  const body = JSON.parse(response.body);
+  assert.ok(body.id, 'Response should have an ID');
+  assert.strictEqual(body.status, expectedStatus, `Expected status to be ${expectedStatus}`);
+  assert.deepStrictEqual(body.items, requestPayload.body.items);
+});
+````
+
+````typescript name=tests/contract/openapi.test.ts
+import OpenAPIBackend from 'openapi-backend';
+import path from 'path';
+
+describe('OpenAPI Contract Validation', () => {
+  let api: OpenAPIBackend;
+
+  beforeAll(() => {
+    api = new OpenAPIBackend({
+      definition: path.join(__dirname, '../../contracts/openapi.yaml'),
+      strict: true,
+    });
+    api.init();
+  });
+
+  it('should validate a valid request to POST /orders', () => {
+    const validRequest = {
+      customerId: 'c7b5f0e9-3c9a-4d2f-b0a6-1b07f0f443e4',
+      items: [{ sku: 'SKU-001', quantity: 1 }],
+    };
+
+    const { valid } = api.validateRequestBody(
+      validRequest,
+      api.getOperation('createOrder')!
+    );
+    expect(valid).toBe(true);
+  });
+
+  it('should invalidate a request with missing required fields', () => {
+    const invalidRequest = {
+      items: [{ sku: 'SKU-001', quantity: 1 }], // missing customerId
+    };
+    const { errors } = api.validateRequestBody(
+      invalidRequest,
+      api.getOperation('createOrder')!
+    );
+    expect(errors).toBeDefined();
+    expect(errors!.length).toBeGreaterThan(0);
+    expect(errors![0].message).toContain("must have required property 'customerId'");
+  });
+
+  it('should validate a valid 201 response from POST /orders', () => {
+    const validResponse = {
+      id: 'd9c5e0a9-4b9a-4d3f-c1a7-2c08f1f554f5',
+      status: 'CREATED',
+      customerId: 'c7b5f0e9-3c9a-4d2f-b0a6-1b07f0f443e4',
+      items: [{ sku: 'SKU-001', quantity: 1 }],
+    };
+
+    const { valid } = api.validateResponse(validResponse, api.getOperation('createOrder')!, 201);
+    expect(valid).toBe(true);
+  });
+});
+````
+
+#### 5. How to Run Locally
+
+1.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+2.  **Run All Tests**:
+    This will execute both the contract tests (Jest) and the acceptance tests (Cucumber.js).
+    ```bash
+    npm test
+    ```
+3.  **Run Specific Test Suites**:
+    ```bash
+    # Run only contract tests
+    npm run test:contract
+
+    # Run only acceptance tests
+    npm run test:acceptance
+    ```
+
+### Adoption Playbook
+
+1.  **Phase 1: Educate & Prepare (Weeks 1-2)**
+    *   **Action**: Conduct workshops on ADRs, BDD, and Contract-First principles.
+    *   **Goal**: Create a shared understanding and vocabulary across development, testing, and product teams.
+    *   **Checklist**:
+        *   [ ] Team has read key literature (Nygard, Adzic).
+        *   [ ] An ADR template has been agreed upon and placed in a central repository.
+        *   [ ] A pilot project/feature has been selected.
+
+2.  **Phase 2: Pilot Project (Weeks 3-6)**
+    *   **Action**: Apply the full Deliverables-First blueprint to a single, non-critical feature.
+    *   **Goal**: Learn the process, create template artifacts, and identify friction points in a low-risk environment.
+    *   **Checklist**:
+        *   [ ] PBS and WBS were created for the pilot feature.
+        *   [ ] All key decisions were captured in ADRs.
+        *   [ ] Gherkin features and OpenAPI specs were written before implementation.
+        *   [ ] DDS and RTM files were created and maintained.
+        *   [ ] CI pipeline for the pilot successfully runs contract and acceptance tests.
+
+3.  **Phase 3: Standardize & Automate (Weeks 7-10)**
+    *   **Action**: Refine the artifacts from the pilot into reusable templates. Automate the creation and validation of traceability links.
+    *   **Goal**: Lower the barrier to entry for other teams. Make adherence to the process as frictionless as possible.
+    *   **Checklist**:
+        *   [ ] Project/repository templates are available with the standard layout and stub files.
+        *   [ ] A script or CI job is created to validate the RTM (e.g., check that all file paths exist).
+        *   [ ] A `DoFD` linter is built to ensure code files link to a valid deliverable.
+
+4.  **Phase 4: Scale & Govern (Ongoing)**
+    *   **Action**: Roll out the methodology to all new projects. Establish a governance process (e.g., architecture review guild) to ensure consistency.
+    *   **Goal**: Make the Deliverables-First approach the default way of working.
+    *   **Checklist**:
+        *   [ ] The process is part of the official developer onboarding documentation.
+        *   [ ] Metrics are tracked (e.g., percentage of code files with a `DoFD` block, requirement-to-test coverage).
+        *   [ ] Regular retrospectives are held to refine the process.
+
+**Common Pitfalls**:
+*   **Tooling over-emphasis**: Focus on the collaborative process first, not just the tools.
+*   **Manual RTM maintenance**: If not automated, the RTM will quickly fall out of date.
+*   **Ivory Tower Architecture**: The architect should not be the only one creating these artifacts. It's a team responsibility.
+*   **Ignoring NFRs**: Ensure non-functional requirements are also captured in acceptance criteria where possible (e.g., "Then the p95 response time should be less than 200ms").
+
+### References
+
+[1] Nygard, M. (c. 2011). *Documenting Architecture Decisions*. Cognitect. Available at: [https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+[2] AXELOS. (2015). *PRINCE2 Agile Foundation*. The Stationery Office. (The principle of product-based planning is a cornerstone of PRINCE2).
+[3] Adzic, G. (2011). *Specification by Example: How Successful Teams Deliver the Right Software*. Manning Publications.
+[4] Newman, S. (2021). *Building Microservices, 2nd Edition*. O'Reilly Media.
+[5] Sommerville, I. (2015). *Software Engineering, 10th Edition*. Pearson.
+[6] ISO/IEC/IEEE 29148:2018. (2018). *Systems and software engineering — Life cycle processes — Requirements engineering*. International Organization for Standardization.
+[7] Cucumber. *Cucumber.js Documentation*. Available at: [https://cucumber.io/docs/cucumber/](https://cucumber.io/docs/cucumber/)
+[8] OpenAPI Initiative. *OpenAPI Specification*. Available at: [https://www.openapis.org/](https://www.openapis.org/)

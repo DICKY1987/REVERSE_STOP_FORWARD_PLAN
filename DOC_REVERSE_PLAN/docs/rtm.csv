@@ -1,0 +1,8 @@
+type,id,links_to,artifact
+Deliverable,DEL-001,ACR-101;TEST-ACPT-42;FILE-SRC-API-HANDLER,deliverables/DEL-001.yaml
+Acceptance,ACR-101,TEST-ACPT-42,tests/acceptance/features/user_creates_order.feature
+Test,TEST-ACPT-42,EVID-ACPT-42;DEL-001,tests/acceptance/features/user_creates_order.feature
+Test,TEST-CT-API-01,CT-API-01,tests/contract/openapi.test.ts
+Evidence,EVID-ACPT-42,,reports/acpt/run.json
+File,FILE-SRC-API-HANDLER,DEL-001,src/api/handler.ts
+Contract,CT-API-01,TEST-CT-API-01;DEL-001,contracts/openapi.yaml

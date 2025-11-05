@@ -1,0 +1,194 @@
+[//]: # "bc:1"
+
+## Executive Summary
+
+This blueprint integrates **Deliverables-First Architecture** — a method emphasizing evidence-backed software planning — with proven industry practices including **Architecture Decision Records (ADRs)**, **Product-Based Structures (PBS/WBS)**, **Behavior-Driven Development (BDD/ATDD)**, **Contract-First APIs**, and **traceable V-Model engineering**. The goal is to produce executable artifacts ensuring traceability from **requirements → deliverables → tests → evidence → files**, runnable in CI.
+
+Drawing on sources like *Erl et al.*’s *SOA with .NET and Windows Azure* [2], *Chatterjee*’s *Designing API-First Enterprise Architectures on Azure* [3], and *Kondreddy & Rastogi*’s *Microservices and Automation Excellence* [1], this model delivers a repeatable, auditable path to production-ready software — reducing ambiguity and increasing compliance readiness.
+
+---
+
+## Literature Review
+
+| #                                                                                                                                                                | Source                                                                                                                                                          | Key Takeaways                                                                   | When to Use / Avoid |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------- |
+| [1] [Kondreddy & Rastogi, *Microservices and Automation Excellence*](https://books.google.com/books?hl=en&lr=&id=_NVlEQAAQBAJ)                                   | Advocates *deliverables-first microservices planning*; recommends ADRs for documenting evolution; supports dependency visualization using automation pipelines. | Use when automation maturity is high; avoid for ad-hoc or prototype projects.   |                     |
+| [2] [Erl et al., *SOA With .NET and Windows Azure*](https://books.google.com/books?hl=en&lr=&id=wk131b1wGB8C)                                                    | Introduces contract-first APIs as foundation for service reliability; formalizes service granularity decisions in ADRs.                                         | Ideal for enterprise-scale services; avoid over-engineering in MVPs.            |                     |
+| [3] [Chatterjee, *Designing API-First Enterprise Architectures on Azure*](https://sciendo.com/2/v2/download/chapter/9781801819275/10.0000/9781801819275-001.pdf) | Emphasizes “API-first with evidence” — every interface has traceable test evidence.                                                                             | Use for regulated domains (finance, healthcare); avoid for monolith prototypes. |                     |
+| [4] [IEEE 1012:2016 – Software Verification and Validation](https://ieeexplore.ieee.org/document/7372036)                                                        | Defines V&V traceability matrices and verification planning.                                                                                                    | Always reference for regulated or safety-critical systems.                      |                     |
+| [5] [Fowler, “Recording Architecture Decisions”](https://martinfowler.com/articles/architecture-decision-records.html)                                           | Defines ADRs as minimal, durable architecture evidence.                                                                                                         | Universal practice; avoid replacing documentation with ADRs alone.              |                     |
+| [6] [Evans, *Domain-Driven Design*](https://domainlanguage.com/ddd)                                                                                              | Domain decomposition aligns with PBS modeling; supports deliverable partitioning.                                                                               | Use for domain-driven microservices; avoid over-fragmentation.                  |                     |
+| [7] [Cohn, *User Stories Applied*](https://www.mountaingoatsoftware.com/books/user-stories-applied)                                                              | Foundation for ATDD and acceptance-first design.                                                                                                                | Excellent for business-facing deliverables.                                     |                     |
+| [8] [Google Engineering Practices Documentation](https://github.com/google/eng-practices)                                                                        | Emphasizes evidence-based testing, file-level ownership (DoFD), and CI traceability.                                                                            | Default reference for modern CI/CD traceability.                                |                     |
+
+---
+
+## Comparison Matrix
+
+| Technique       | Purpose                      | Strengths              | Tradeoffs            | Tooling              | Adoption Tips           | Anti-Patterns                     |
+| --------------- | ---------------------------- | ---------------------- | -------------------- | -------------------- | ----------------------- | --------------------------------- |
+| ADRs            | Capture architectural intent | Lightweight, versioned | Can accumulate noise | MADR, adr-tools      | Link to CI, contracts   | “ADR inflation” without decisions |
+| PBS→WBS         | Product→Task decomposition   | Maintains alignment    | Requires discipline  | Jira, Trello, Excel  | Derive only from PBS    | Starting from tasks               |
+| ATDD/BDD        | Acceptance-first design      | Behavior traceability  | Test verbosity       | Cucumber, Jest       | Automate early          | “Happy-path only”                 |
+| Contract-first  | Interface correctness        | Enables stubs/mocks    | Requires spec upkeep | OpenAPI, JSON Schema | Generate clients        | Hand-written mismatches           |
+| Light V-Model   | Verification with design     | Ensures traceability   | Slower early stages  | RTM, CI              | Parallelize test design | Tests written post-dev            |
+| RTM             | Requirements-to-test map     | Compliance-ready       | Maintenance effort   | CSV, GitHub Actions  | Automate generation     | Manual sync errors                |
+| File-level DoFD | Explicit accountability      | Localized evidence     | Adds verbosity       | Any codebase         | CI lint for DoFD blocks | Missing DoFD tags                 |
+
+---
+
+## Blueprint (Deliverables-First Flow)
+
+### 1. PBS → WBS
+
+**PBS Example:**
+
+* DEL-001: API Endpoint `/orders`
+* DEL-002: Contract definition (OpenAPI)
+* DEL-003: Acceptance Test Suite
+* DEL-004: CI Evidence Publisher
+
+**Derived WBS:**
+
+* Implement handler.ts for DEL-001
+* Write OpenAPI + JSON Schema for DEL-002
+* Author Gherkin + Jest scaffolds for DEL-003
+* Configure `.github/workflows/ci.yml` for DEL-004
+
+### 2. ADRs
+
+**docs/adr/0001-contract-first.md**
+
+```markdown
+# Adopt Contract-First API Design
+*Status:* Accepted  
+*Date:* 2025-11-05  
+*Context:* Service interfaces must be validated by contract tests.  
+*Decision:* All new endpoints are derived from OpenAPI specs.  
+*Consequences:* Consistent interface governance; added upfront effort.  
+*Related:* DEL-001, DEL-002, RTM CT-API
+```
+
+### 3. Dependency Graph
+
+```mermaid
+graph TD
+  DEL-001[API Endpoint /orders] --> CT-API[OpenAPI Contract]
+  CT-API --> TEST-CT-API[Contract Tests]
+  DEL-001 --> TEST-ACPT-42[Acceptance Tests]
+  TEST-ACPT-42 --> EVID-ACPT-42[CI Evidence]
+  FILE-src_api_handler[handler.ts] --> DEL-001
+```
+
+---
+
+## Exemplar Implementation
+
+**Repo Tree**
+
+```
+.
+├── contracts/openapi.yaml
+├── deliverables/DEL-001.yaml
+├── docs/
+│   ├── adr/0001-contract-first.md
+│   ├── deps.md
+│   └── rtm.csv
+├── src/api/handler.ts
+├── tests/acceptance/user_creates_order.feature
+└── .github/workflows/ci.yml
+```
+
+**deliverables/DEL-001.yaml**
+
+```yaml
+id: DEL-001
+name: Order Creation Endpoint
+purpose: "Enable order submission via REST API"
+acceptance_criteria:
+  - id: ACR-101
+    given: "A valid CreateOrderRequest"
+    when: "POST /orders"
+    then: "201 Created with Order payload"
+evidence:
+  tests:
+    - path: tests/acceptance/user_creates_order.feature
+      proves: [ACR-101]
+interfaces:
+  exposes:
+    - name: OrderAPI
+      contract: contracts/openapi.yaml
+files_must_exist:
+  - src/api/handler.ts
+links:
+  adr: docs/adr/0001-contract-first.md
+```
+
+**src/api/handler.ts**
+
+```typescript
+/* DoFD:
+deliverable: DEL-001
+satisfies_acceptance: [ACR-101]
+tests_must_pass:
+  - tests/acceptance/user_creates_order.feature
+contracts_must_pass:
+  - contracts/openapi.yaml
+*/
+export const createOrderHandler = (req, res) => {
+  res.status(201).json({ id: "abc123", status: "CREATED" });
+};
+```
+
+**docs/rtm.csv**
+
+```
+type,id,links_to,artifact
+Deliverable,DEL-001,ACR-101;TEST-ACPT-42;FILE-src/api/handler.ts,deliverables/DEL-001.yaml
+Acceptance,ACR-101,TEST-ACPT-42,deliverables/DEL-001.yaml
+Test,TEST-ACPT-42,EVID-ACPT-42,tests/acceptance/user_creates_order.feature
+Evidence,EVID-ACPT-42,,reports/acpt/run.json
+File,FILE-src/api/handler.ts,DEL-001,src/api/handler.ts
+Contract,CT-API,TEST-CT-API,contracts/openapi.yaml
+```
+
+---
+
+## Adoption Playbook
+
+1. **Start with PBS** — identify concrete deliverables.
+2. **Create ADRs** for each significant decision.
+3. **Write Gherkin acceptance tests** before code.
+4. **Generate contracts** from OpenAPI, attach to deliverables.
+5. **Implement with DoFD blocks** in every source file.
+6. **Configure CI** to run acceptance and contract tests.
+7. **Publish RTM automatically** (e.g., GitHub Action to regenerate CSV).
+8. **Governance** — enforce traceability checks before merge.
+
+**Pitfalls:** skipping acceptance-first, orphaned tasks, or unlinked files.
+**Governance Automation:** Lint for missing DoFDs, RTM validation in CI.
+
+---
+
+## References
+
+1. Kondreddy, V.K., & Rastogi, D.R.D. *Microservices and Automation Excellence: Full-Stack Development for the Intelligent Enterprise 2025.* [Google Books](https://books.google.com/books?hl=en&lr=&id=_NVlEQAAQBAJ)
+2. Erl, T., Chou, D., deVadoss, J., Gandhi, N., & Kommalapati, H. *SOA With .NET and Windows Azure.* [Google Books](https://books.google.com/books?hl=en&lr=&id=wk131b1wGB8C)
+3. Chatterjee, S. *Designing API-First Enterprise Architectures on Azure.* [Sciendo PDF](https://sciendo.com/2/v2/download/chapter/9781801819275/10.0000/9781801819275-001.pdf)
+4. IEEE. *Standard 1012-2016: Software Verification and Validation.*
+5. Fowler, M. “Recording Architecture Decisions.” [martinfowler.com](https://martinfowler.com/articles/architecture-decision-records.html)
+6. Evans, E. *Domain-Driven Design.* Addison-Wesley.
+7. Cohn, M. *User Stories Applied.* Addison-Wesley.
+8. Google Engineering Practices. [GitHub](https://github.com/google/eng-practices)
+
+---
+
+### 🧭  Deadline looming?
+
+*Turn your reading list into a structured outline in minutes*
+
+* 📑  Chat with AI to summarize and quickly synthesize your papers
+* 🔗  Manage citations automatically with over 2,600 styles (APA/MLA/Chicago/IEEE)
+* ⌨️  Beat writer’s block with AI autocomplete, powered by your sources
+
+⏩  [**Continue your research workflow in Jenni**](https://jenni.ai/?via=scholarai31)
