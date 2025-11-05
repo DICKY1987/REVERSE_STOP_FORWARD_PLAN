@@ -1,0 +1,66 @@
+name: Per-doc tags
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**/*.md'
+      - 'plans/**/*.md'
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push tags
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Set Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install deps
+        run: pip install python-frontmatter pyyaml
+
+      - name: Tag changed docs
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, frontmatter, sys
+
+          def sh(cmd: str) -> str:
+              return subprocess.check_output(cmd, shell=True, text=True).strip()
+
+          before = os.environ["BEFORE"]
+          after  = os.environ["AFTER"]
+          files = sh(f"git diff --name-only {before} {after} -- 'docs/**/*.md' 'plans/**/*.md'").splitlines()
+          if not files:
+              sys.exit(0)
+
+          created = []
+          for f in files:
+              try:
+                  text = open(f, 'r', encoding='utf-8').read()
+              except Exception:
+                  # Deleted or moved; skip
+                  continue
+              post = frontmatter.loads(text)
+              meta = post.metadata or {}
+              dk = meta.get('doc_key')
+              sv = meta.get('semver')
+              if not dk or not sv:
+                  print(f"Skipping {f}: missing doc_key/semver")
+                  continue
+              tag = f"docs-{dk}-{sv}"
+              existing = sh(f"git tag --list '{tag}'")
+              if not existing:
+                  # Create annotated tag if it doesn't already exist
+                  sh(f"git tag -a {tag} -m 'Snapshot {dk} v{sv} from {after[:7]}'")
+                  created.append(tag)
+
+          if created:
+              print("Creating tags:", created)
+              sh('git push --tags')
+          PY

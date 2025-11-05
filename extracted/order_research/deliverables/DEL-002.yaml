@@ -1,0 +1,26 @@
+id: DEL-002
+name: Acceptance test spec
+purpose: "Define business behaviour for order creation in Gherkin"
+acceptance_criteria:
+  - id: ACR-002
+    given: A valid CreateOrderRequest
+    when: It is posted to /orders
+    then: The system responds with 201 and status CREATED
+evidence:
+  tests:
+    - path: tests/acceptance/user_creates_order.feature
+      proves: [ACR-002]
+      reports: []
+  interfaces:
+    consumes:
+      - name: createOrder
+        contract: contracts/openapi.yaml
+    exposes: []
+  files_must_exist:
+    - tests/acceptance/user_creates_order.feature
+    - tests/acceptance/steps/order_steps.ts
+  risks:
+    - Ambiguity in Gherkin may mislead developers
+links:
+  adr: docs/adr/0001-contract-first.md
+  rtM_ids: [ACR-002, TEST-ACPT-001]

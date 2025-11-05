@@ -1,0 +1,17 @@
+type,id,links_to,artifact
+Deliverable,DEL-001,ACR-001;TEST-CT-001;FILE-contracts/openapi.yaml,deliverables/DEL-001.yaml
+Deliverable,DEL-002,ACR-002;TEST-ACPT-001;FILE-tests/acceptance/user_creates_order.feature,deliverables/DEL-002.yaml
+Deliverable,DEL-003,ACR-003;TEST-UNIT-001;TEST-CT-001;TEST-ACPT-001;FILE-src/api/handler.ts,deliverables/DEL-003.yaml
+Acceptance,ACR-001,TEST-CT-001,deliverables/DEL-001.yaml
+Acceptance,ACR-002,TEST-ACPT-001,deliverables/DEL-002.yaml
+Acceptance,ACR-003,TEST-UNIT-001;TEST-CT-001;TEST-ACPT-001,deliverables/DEL-003.yaml
+Test,TEST-CT-001,EVID-CT-001,test/contract/openapi.test.ts
+Test,TEST-UNIT-001,EVID-UNIT-001,test/unit/handler.test.ts
+Test,TEST-ACPT-001,EVID-ACPT-001,tests/acceptance/user_creates_order.feature
+Evidence,EVID-CT-001,,reports/contract/latest.json
+Evidence,EVID-UNIT-001,,reports/unit/latest.json
+Evidence,EVID-ACPT-001,,reports/acpt/latest.json
+File,FILE-contracts/openapi.yaml,DEL-001,contracts/openapi.yaml
+File,FILE-tests/acceptance/user_creates_order.feature,DEL-002,tests/acceptance/user_creates_order.feature
+File,FILE-src/api/handler.ts,DEL-003,src/api/handler.ts
+Contract,CT-API,TEST-CT-001,contracts/openapi.yaml

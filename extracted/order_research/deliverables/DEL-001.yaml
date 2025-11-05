@@ -1,0 +1,25 @@
+id: DEL-001
+name: API contract
+purpose: "Define the HTTP interface for order creation"
+acceptance_criteria:
+  - id: ACR-001
+    given: A contract reviewer
+    when: The OpenAPI file is opened
+    then: All endpoints and schemas for order creation are defined and meet stakeholder agreements
+evidence:
+  tests:
+    - path: test/contract/openapi.test.ts
+      proves: [ACR-001]
+      reports: []
+  interfaces:
+    consumes: []
+    exposes:
+      - name: createOrder
+        contract: contracts/openapi.yaml
+  files_must_exist:
+    - contracts/openapi.yaml
+  risks:
+    - Schema changes could break clients
+links:
+  adr: docs/adr/0001-contract-first.md
+  rtM_ids: [ACR-001, TEST-CT-001, CT-API]

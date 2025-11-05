@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Order",
+  "type": "object",
+  "required": ["id", "status", "customerId", "items"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["CREATED", "REJECTED", "SHIPPED"] },
+    "customerId": { "type": "string", "format": "uuid" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sku", "quantity"],
+        "properties": {
+          "sku": { "type": "string" },
+          "quantity": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

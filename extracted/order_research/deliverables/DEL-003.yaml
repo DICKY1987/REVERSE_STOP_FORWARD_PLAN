@@ -1,0 +1,29 @@
+id: DEL-003
+name: Handler implementation
+purpose: "Implement the createOrder API and domain logic"
+acceptance_criteria:
+  - id: ACR-003
+    given: The handler receives a valid request
+    when: It processes the order
+    then: It returns an Order object conforming to the schema with status CREATED
+evidence:
+  tests:
+    - path: test/unit/handler.test.ts
+      proves: [ACR-003]
+    - path: test/contract/openapi.test.ts
+      proves: [ACR-003]
+    - path: tests/acceptance/user_creates_order.feature
+      proves: [ACR-003]
+    reports: []
+  interfaces:
+    consumes:
+      - name: createOrder
+        contract: contracts/openapi.yaml
+    exposes: []
+  files_must_exist:
+    - src/api/handler.ts
+  risks:
+    - Incorrect domain logic may cause status mismatches
+links:
+  adr: docs/adr/0001-contract-first.md
+  rtM_ids: [ACR-003, TEST-UNIT-001, TEST-CT-001, TEST-ACPT-001]

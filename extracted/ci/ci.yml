@@ -1,0 +1,166 @@
+name: R_PIPELINE CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: '3.10'
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+
+jobs:
+  validate-infrastructure:
+    name: Validate Infrastructure (TDI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-testinfra pulumi
+      - name: Run Infrastructure Tests
+        run: |
+          pytest infrastructure/tests/ -v --tb=short
+      - name: Pulumi Preview
+        uses: pulumi/actions@v4
+        with:
+          command: preview
+          work-dir: infrastructure/pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  lint-and-format:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Linters
+        run: |
+          pip install ruff black isort mypy pylint
+      - name: Run Ruff
+        run: ruff check . --output-format=github
+      - name: Check Black Formatting
+        run: black --check .
+      - name: Check Import Sorting
+        run: isort --check-only .
+      - name: Run MyPy
+        run: mypy core/ plugins/
+      - name: Run Pylint
+        run: pylint core/ plugins/ --output-format=colorized
+
+  test-plugins:
+    name: Test Plugins (TDD)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run Unit Tests
+        run: |
+          pytest plugins/ -v --cov=plugins --cov-report=xml --cov-report=term
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: unittests
+
+  validate-plugins:
+    name: Validate Plugin Contracts
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, test-plugins]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v1
+      - name: Run Plugin Validation
+        shell: pwsh
+        run: |
+          $plugins = Get-ChildItem -Path plugins -Directory
+          foreach ($plugin in $plugins) {
+            Write-Host "Validating $($plugin.Name)..."
+            .\core\Validate-Plugin.ps1 -PluginPath $plugin.FullName
+          }
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [validate-plugins]
+    services:
+      jaeger:
+        image: jaegertracing/all-in-one:latest
+        ports:
+          - 16686:16686
+          - 4318:4318
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install opentelemetry-sdk opentelemetry-exporter-otlp
+      - name: Run Integration Tests
+        run: |
+          pytest tests/integration/ -v --tb=short
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install MkDocs
+        run: |
+          pip install mkdocs mkdocs-material mkdocstrings
+      - name: Build Documentation
+        run: mkdocs build --strict
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        run: mkdocs gh-deploy --force
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [validate-infrastructure, integration-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy Infrastructure
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          work-dir: infrastructure/pulumi
+          stack-name: production
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      - name: Deploy Application
+        run: |
+          # Your deployment script here
+          echo "Deploying R_PIPELINE to production..."

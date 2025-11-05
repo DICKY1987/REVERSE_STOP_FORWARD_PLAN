@@ -1,0 +1,26 @@
+id: DEL-001
+name: API Endpoint /orders
+purpose: "Accept an order and return id + status"
+acceptance_criteria:
+  - id: ACR-101
+    given: "a valid CreateOrderRequest payload"
+    when: "POST to /orders"
+    then: "201 with Order.status=CREATED and id present"
+evidence:
+  tests:
+    - path: tests/acceptance/user_creates_order.feature
+      proves: [ACR-101]
+  reports:
+    - path: reports/acpt/run.json
+interfaces:
+  consumes: []
+  exposes:
+    - name: "Order API"
+      contract: contracts/openapi.yaml
+files_must_exist:
+  - src/api/handler.ts
+risks:
+  - Incorrect payload validation could accept bad orders
+links:
+  adr: docs/adr/0001-contract-first.md
+  rtM_ids: [RTM-DEL-001]

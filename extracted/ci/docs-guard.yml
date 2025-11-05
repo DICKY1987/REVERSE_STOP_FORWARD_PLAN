@@ -1,0 +1,115 @@
+name: Docs guard (front-matter + SemVer rules)
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    paths:
+      - 'docs/**/*.md'
+      - 'plans/**/*.md'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install python-frontmatter pyyaml semver
+      - name: Validate changed docs
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - << 'PY'
+          import os, subprocess, sys, re
+          import frontmatter, yaml, semver  # noqa: F401
+
+          def shell(cmd: str) -> str:
+              return subprocess.check_output(cmd, shell=True, text=True).strip()
+
+          base = os.environ["BASE_SHA"]
+          head = os.environ["HEAD_SHA"]
+          pr_title = os.environ.get("PR_TITLE", "").lower()
+          files = shell(f"git diff --name-only {base} {head} -- 'docs/**/*.md' 'plans/**/*.md'").splitlines()
+          if not files:
+              sys.exit(0)
+
+          wants_major = "breaking change" in pr_title or re.match(r'^(breaking|feat!)', pr_title)
+          wants_minor = pr_title.startswith("feat") and not wants_major
+
+          errors = []
+          warnings = []
+          for f in files:
+              # Load old/new versions of the file
+              try:
+                  old_blob = shell(f"git show {base}:{f}")
+              except subprocess.CalledProcessError:
+                  old_blob = ""
+              try:
+                  new_blob = shell(f"git show {head}:{f}")
+              except subprocess.CalledProcessError:
+                  new_blob = open(f, "r", encoding="utf-8").read()
+
+              def parse(blob: str):
+                  if not blob:
+                      return None, None
+                  post = frontmatter.loads(blob)
+                  fm = post.metadata or {}
+                  return fm, post.content
+
+              old, _ = parse(old_blob)
+              new, _ = parse(new_blob)
+              if not new or not new.get("doc_key") or not new.get("semver"):
+                  errors.append(f"{f}: missing required front matter fields (doc_key, semver).")
+                  continue
+              try:
+                  new_v = semver.Version.parse(str(new["semver"]))
+              except Exception:
+                  errors.append(f"{f}: invalid semver '{new.get('semver')}'.")
+                  continue
+              if old and old.get("semver"):
+                  try:
+                      old_v = semver.Version.parse(str(old["semver"]))
+                  except Exception:
+                      errors.append(f"{f}: invalid previous semver '{old.get('semver')}'.")
+                      continue
+                  if new_v <= old_v:
+                      errors.append(f"{f}: semver must increase (old {old_v} -> new {new_v}).")
+                  bump = "patch"
+                  if new_v.major > old_v.major:
+                      bump = "major"
+                  elif new_v.minor > old_v.minor:
+                      bump = "minor"
+                  if wants_major and bump != "major":
+                      errors.append(f"{f}: PR suggests BREAKING change but bump is {bump}. Require MAJOR.")
+                  if wants_minor and bump == "patch":
+                      errors.append(f"{f}: PR suggests a feature but bump is PATCH. Require MINOR or MAJOR.")
+                  if new.get("contract_type") == "execution_contract" and bump == "minor":
+                      errors.append(f"{f}: execution_contract changes must be MAJOR (scope change) or PATCH (editorial), not MINOR.")
+                  if old.get("effective_date") == new.get("effective_date") and bump in ("minor", "major"):
+                      warnings.append(f"{f}: consider updating effective_date for {bump} changes.")
+                  ssv = new.get("supersedes_version")
+                  if ssv:
+                      try:
+                          svp = semver.Version.parse(str(ssv))
+                          if svp != old_v:
+                              warnings.append(f"{f}: supersedes_version '{ssv}' doesn't match prior version '{old_v}'.")
+                      except Exception:
+                          errors.append(f"{f}: invalid supersedes_version '{ssv}'.")
+              else:
+                  if new_v < semver.Version.parse("1.0.0"):
+                      errors.append(f"{f}: new docs should start at 1.0.0 or higher.")
+              if new.get("status") not in (None, "active", "deprecated", "frozen"):
+                  errors.append(f"{f}: status must be active|deprecated|frozen.")
+          for w in warnings:
+              print(f"::warning::{w}")
+          if errors:
+              for e in errors:
+                  print(f"::error::{e}")
+              sys.exit(1)
+          PY

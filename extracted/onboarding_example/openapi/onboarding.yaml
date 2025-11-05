@@ -1,0 +1,28 @@
+# openapi/onboarding.yaml
+openapi: 3.0.0
+info:
+  title: Customer Onboarding API
+  version: 1.0.0
+paths:
+  /customers:
+    post:
+      summary: Creates a new customer record securely.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreateRequest'
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerCreateResponse'
+components:
+  schemas:
+    CustomerCreateRequest:
+      $ref: './schemas/CustomerCreateRequest.json'
+    CustomerCreateResponse:
+      $ref: './schemas/CustomerCreateResponse.json'

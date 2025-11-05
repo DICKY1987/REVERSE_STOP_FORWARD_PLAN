@@ -1,0 +1,9 @@
+---
+doc_key: OC_CORE              # Stable identifier (no dates, no version)
+semver: 1.3.0                 # Required: MAJOR.MINOR.PATCH
+status: active                # active | deprecated | frozen
+effective_date: 2025-10-28    # When this version takes effect (YYYY-MM-DD)
+supersedes_version: 1.2.2     # Previous semver (omit for brand-new docs)
+owner: Platform.Engineering   # CODEOWNERS team/role
+contract_type: policy         # policy | intent | execution_contract
+---

@@ -1,0 +1,24 @@
+openapi: 3.0.3
+info:
+  title: Order Service
+  version: "0.1.0"
+paths:
+  /orders:
+    post:
+      summary: Create a new order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/CreateOrderRequest.json'
+      responses:
+        "201":
+          description: Order Created Successfully
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/Order.json'
+        "400":
+          description: Invalid request payload

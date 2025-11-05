@@ -1,0 +1,40 @@
+site_name: R_PIPELINE Documentation
+site_description: Documentation for R_PIPELINE Autonomous System
+site_author: Your Team
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+
+nav:
+  - Home: index.md
+  - Operating Contract: OPERATING_CONTRACT.md
+  - Implementation Guide: IMPLEMENTATION_GUIDE.md
+  - Plugins:
+      - Overview: plugins/index.md
+      - Deduplicator: plugins/deduplicator/README_PLUGIN.md
+      - File Classifier: plugins/file-classifier/README_PLUGIN.md
+  - API Reference: api/index.md
+  - Troubleshooting: troubleshooting.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences

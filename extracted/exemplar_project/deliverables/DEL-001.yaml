@@ -1,0 +1,26 @@
+id: DEL-001
+name: "API Endpoint: POST /orders"
+purpose: "Allows a client to create a new order in the system."
+acceptance_criteria:
+  - id: ACR-101
+    description: "A valid order request should be accepted and result in a created order."
+    # The Gherkin text is stored in the .feature file, not duplicated here.
+evidence:
+  tests:
+    - path: tests/acceptance/features/user_creates_order.feature
+      proves: [ACR-101]
+    - path: tests/contract/openapi.test.ts
+      proves: [CT-API-01]
+  reports:
+    - path: reports/acpt/run.json
+interfaces:
+  exposes:
+    - name: createOrder
+      contract: contracts/openapi.yaml
+files_must_exist:
+  - src/api/handler.ts
+risks:
+  - "The handler logic may not correctly implement the business rules for order validation."
+links:
+  adr: docs/adr/0001-use-contract-first-development.md
+  rtm_ids: [DEL-001, ACR-101, TEST-ACPT-42, TEST-CT-API-01]

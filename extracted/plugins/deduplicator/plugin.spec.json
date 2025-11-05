@@ -1,0 +1,37 @@
+{
+  "plugin_name": "deduplicator",
+  "version": "1.0.0",
+  "author": "your-email@example.com",
+  "lifecycle_event": "FileDetected",
+  "description": "Detects and resolves duplicate files",
+  "language": "python",
+  "entry_point": "deduplicator.py",
+  "timeout_seconds": 30,
+  "dependencies": {
+    "powershell_modules": [],
+    "python_packages": ["hashlib"]
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_path": {"type": "string"},
+      "file_hash": {"type": "string"},
+      "trace_id": {"type": "string"}
+    },
+    "required": ["file_path", "file_hash", "trace_id"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "status": {"type": "string", "enum": ["success", "error"]},
+      "is_duplicate": {"type": "boolean"},
+      "duplicate_of": {"type": "string"},
+      "recommended_action": {"type": "string"},
+      "trace_id": {"type": "string"}
+    },
+    "required": ["status", "is_duplicate", "trace_id"]
+  },
+  "rollback_supported": true,
+  "risk_level": "medium",
+  "enabled": true
+}

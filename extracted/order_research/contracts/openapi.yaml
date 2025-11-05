@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: Order Service
+  version: "0.1.0"
+paths:
+  /orders:
+    post:
+      summary: Create a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required:
+        - customerId
+        - items
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+    Order:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [CREATED, REJECTED]
+    OrderItem:
+      type: object
+      required:
+        - sku
+        - qty
+      properties:
+        sku:
+          type: string
+        qty:
+          type: integer
+          minimum: 1

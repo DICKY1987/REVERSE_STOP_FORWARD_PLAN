@@ -1,0 +1,21 @@
+# Default owner for everything
+* @default-team
+
+# Documentation
+/docs/**                                @team-docs
+
+# Governance policies
+/docs/standards/**                      @team-compliance
+
+# Plans and roadmaps
+/plans/**                               @team-pmo
+
+# Execution contracts (require multi-approval)
+/plans/**/EXECUTION_CONTRACT.md         @team-compliance @team-pmo
+
+# Versioning contract (this file is critical)
+/docs/standards/VERSIONING_OC.md        @team-compliance @platform-engineering
+
+# Example for specific high-stakes documents
+/docs/standards/OC_CORE.md              @team-compliance @platform-engineering
+/docs/standards/PIPELINE_POLICY.md      @team-compliance @platform-engineering

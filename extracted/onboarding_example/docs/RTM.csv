@@ -1,0 +1,3 @@
+DDS ID,Contract Spec Path,Gherkin Feature Path,Test Step Definition Path,File DoFD Path(s),CI Evidence URL,Status
+DDS-001,openapi/onboarding.yaml,features/onboarding.feature,tests/steps/api.steps.ts,src/api/customer_api.ts,/ci-results/tests/onboarding-feature.log,PASS
+DDS-002,N/A,N/A,tests/unit/persistence.test.ts,src/data/customer_repo.ts,/ci-results/tests/persistence.log,PASS
