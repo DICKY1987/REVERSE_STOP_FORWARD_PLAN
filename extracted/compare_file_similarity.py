@@ -49,18 +49,27 @@ def is_text_file(file_path: Path) -> bool:
         return False
 
 
-def calculate_similarity(file1_path: Path, file2_path: Path) -> float:
+def calculate_similarity(file1_path: Path, file2_path: Path, max_size_mb: int = 10) -> float:
     """
     Calculate similarity between two files.
     
     Args:
         file1_path: Path to first file
         file2_path: Path to second file
+        max_size_mb: Maximum file size in MB to compare (default: 10MB)
         
     Returns:
         Similarity ratio (0.0 to 1.0)
     """
     try:
+        # Check file sizes to avoid memory issues with very large files
+        size1_mb = file1_path.stat().st_size / (1024 * 1024)
+        size2_mb = file2_path.stat().st_size / (1024 * 1024)
+        
+        if size1_mb > max_size_mb or size2_mb > max_size_mb:
+            # Skip very large files
+            return 0.0
+        
         with open(file1_path, 'r', encoding='utf-8', errors='ignore') as f1:
             content1 = f1.read()
         

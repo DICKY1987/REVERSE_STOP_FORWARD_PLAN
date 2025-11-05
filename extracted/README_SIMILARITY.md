@@ -70,6 +70,8 @@ Text files are identified by:
 - Comparison complexity: O(n²) where n is the number of files
 - Memory usage: Reads two files at a time, memory-efficient for large directories
 - Progress indicators adapt to terminal vs. non-terminal output
+- File size limit: Skips files larger than 10MB to prevent memory issues
+- Optimized for typical code repositories with small to medium-sized files
 
 ## Customization
 
