@@ -1,0 +1,26 @@
+================================================================================
+File Similarity Comparator
+================================================================================
+Searching for files with 90% or more similar content
+Root directory: /home/runner/work/REVERSE_STOP_FORWARD_PLAN/REVERSE_STOP_FORWARD_PLAN/extracted
+================================================================================
+
+Scanning files in /home/runner/work/REVERSE_STOP_FORWARD_PLAN/REVERSE_STOP_FORWARD_PLAN/extracted...
+Found 91 text files to compare
+
+Comparing files (total comparisons: 4095)...
+Progress: 100/4095 comparisonsProgress: 200/4095 comparisonsProgress: 300/4095 comparisonsProgress: 400/4095 comparisonsProgress: 500/4095 comparisonsProgress: 600/4095 comparisonsProgress: 700/4095 comparisonsProgress: 800/4095 comparisonsProgress: 900/4095 comparisonsProgress: 1000/4095 comparisonsProgress: 1100/4095 comparisonsProgress: 1200/4095 comparisonsProgress: 1300/4095 comparisonsProgress: 1400/4095 comparisonsProgress: 1500/4095 comparisonsProgress: 1600/4095 comparisonsProgress: 1700/4095 comparisonsProgress: 1800/4095 comparisonsProgress: 1900/4095 comparisonsProgress: 2000/4095 comparisonsProgress: 2100/4095 comparisonsProgress: 2200/4095 comparisonsProgress: 2300/4095 comparisonsProgress: 2400/4095 comparisonsProgress: 2500/4095 comparisonsProgress: 2600/4095 comparisonsProgress: 2700/4095 comparisonsProgress: 2800/4095 comparisonsProgress: 2900/4095 comparisonsProgress: 3000/4095 comparisonsProgress: 3100/4095 comparisonsProgress: 3200/4095 comparisonsProgress: 3300/4095 comparisonsProgress: 3400/4095 comparisonsProgress: 3500/4095 comparisonsProgress: 3600/4095 comparisonsProgress: 3700/4095 comparisonsProgress: 3800/4095 comparisonsProgress: 3900/4095 comparisonsProgress: 4000/4095 comparisonsProgress: 4095/4095 comparisons
+
+================================================================================
+RESULTS
+================================================================================
+
+Found 1 pair(s) of files with 90% or more similarity:
+
+Similarity: 100.00%
+  File 1: spec_project/tests/acceptance/user_creates_order.feature
+  File 2: order_research/tests/acceptance/user_creates_order.feature
+
+================================================================================
+Comparison complete!
+================================================================================
