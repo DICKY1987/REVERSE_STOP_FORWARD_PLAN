@@ -43,7 +43,7 @@ The script outputs:
 Last run results are saved in `similarity_report.txt`.
 
 **Summary of findings:**
-- **Total text files scanned**: Varies based on files present (typically 90+)
+- **Total text files scanned**: Number varies depending on repository contents
 - **Files with 90%+ similarity**: 1 pair
 
 **Identified similar files:**

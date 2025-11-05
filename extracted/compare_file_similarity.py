@@ -108,6 +108,24 @@ def get_all_files(root_dir: Path, exclude_dirs: Set[str] = None) -> List[Path]:
     return files
 
 
+def report_progress(comparisons_done: int, total_comparisons: int) -> None:
+    """
+    Report progress of file comparisons.
+    
+    Args:
+        comparisons_done: Number of comparisons completed
+        total_comparisons: Total number of comparisons to perform
+    """
+    if comparisons_done % 100 == 0 or comparisons_done == total_comparisons:
+        if sys.stdout.isatty():
+            print(f"Progress: {comparisons_done}/{total_comparisons} comparisons", end='\r')
+            sys.stdout.flush()
+        else:
+            # For non-interactive output, print periodic updates
+            if comparisons_done % 1000 == 0 or comparisons_done == total_comparisons:
+                print(f"Progress: {comparisons_done}/{total_comparisons} comparisons")
+
+
 def compare_files(root_dir: Path, similarity_threshold: float = 0.90) -> List[Tuple[Path, Path, float]]:
     """
     Compare all files in the directory and find similar pairs.
@@ -134,15 +152,8 @@ def compare_files(root_dir: Path, similarity_threshold: float = 0.90) -> List[Tu
         for j in range(i + 1, len(files)):
             comparisons_done += 1
             
-            # Progress indicator
-            if comparisons_done % 100 == 0 or comparisons_done == total_comparisons:
-                if sys.stdout.isatty():
-                    print(f"Progress: {comparisons_done}/{total_comparisons} comparisons", end='\r')
-                    sys.stdout.flush()
-                else:
-                    # For non-interactive output, print periodic updates
-                    if comparisons_done % 1000 == 0 or comparisons_done == total_comparisons:
-                        print(f"Progress: {comparisons_done}/{total_comparisons} comparisons")
+            # Report progress
+            report_progress(comparisons_done, total_comparisons)
             
             file1 = files[i]
             file2 = files[j]
